@@ -1,0 +1,59 @@
+---
+title: "Running methods and computing performance metrics"
+author: "Pierre-Luc Germain"
+date: "7/15/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(DoubletCollection)
+  library(scDblFinder)
+})
+```
+
+
+```{r}
+datasets <- list.files("datasets", pattern="\\.rds$", full=TRUE)
+names(datasets) <- gsub("\\.rds$","",basename(datasets))
+methods <- c('Scrublet','cxds','bcds','hybrid','scDblFinder',
+             'DoubletFinder','computeDoubletDensity')
+
+datasets <- lapply(datasets, readRDS)
+
+scores <- lapply(datasets, FUN=function(x){
+  x <- x[[1]]
+  lapply(setNames(methods, methods), FUN=function(method){
+    st <- system.time( sco <- switch(method,
+      "DoubletFinder"=DoubletCollection:::CallDoubletFinder(x),
+      "Scrublet"=DoubletCollection:::CallScrublet(x),
+      "scDblFinder"=scDblFinder(x)$scDblFinder.score,
+      "computeDoubletDensity"=computeDoubletDensity(x),
+      DoubletCollection:::Callscds(count=x, method=method)
+    ))
+    list(scores=sco, time=st)
+  })
+})
+
+saveRDS(scores, file="scores.rds")
+```
+
+```{r}
+true_labels <- lapply(datasets, FUN=function(x) as.integer(x[[2]]=='doublet'))
+
+res <- dplyr::bind_rows(lapply(names(scores), FUN=function(ds){
+  truth <- true_labels[[ds]]
+  dplyr::bind_rows(lapply(scores[[ds]], FUN=function(x){
+    s <- split(x$scores, truth)
+    c(AUPRC=mean(as.numeric(PRROC::pr.curve(s[[1]], s[[2]])[2:3])),
+      AUROC=PRROC::roc.curve(s[[1]], s[[2]])[[2]],
+      user=x$time["user"], elapsed=x$time["elapsed"])
+  }), .id="method")
+}), .id="dataset")
+saveRDS(res, file="benchmark.results.rds")
+```
+
+```{r}
+sessionInfo()
+```
+
