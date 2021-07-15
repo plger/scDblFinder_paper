@@ -1,2 +1,4 @@
 benchmark/datasets/*.rds
 *.html
+mixology10x5cl.SCE.rds
+other_datasets/batch*.SCE.rds

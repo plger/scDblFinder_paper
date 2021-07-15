@@ -1,0 +1,111 @@
+---
+title: "Doublet enrichment analysis"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(scDblFinder)
+})
+source("../misc.R")
+```
+
+# Cluster stickiness
+
+```{r}
+set.seed(42)
+# with 6 cell types
+base_ncells <- c(1500,200,1000,500,300,800) # base n cells per type
+eg <- expand.grid( disps=c(0,0,0.5,1,2,10), # size parameter of the nbinom distribution
+                   ncells=c(1,2,3,5), # multiplier of the nb of cells
+                   effect=c(1,1,1.5,2,3) ) # effect size
+sims <- lapply(rep(seq_len(nrow(eg)),3), FUN=function(i){
+  x <- simDblCounts(ncells=base_ncells*eg$ncells[i], size=eg$disps[i],
+                    stickiness=c(rep(1,length(base_ncells)-1), eg$effect[i]))
+  combs <- matrix(paste0(rep(colnames(x$observed),nrow(x$observed)), "+", 
+                         rep(colnames(x$observed),each=nrow(x$observed))), 
+                  nrow=nrow(x$observed))
+  w <- upper.tri(combs)
+  data.frame(combination=combs[w], observed=x$observed[w], 
+             expected=x$expected[w], difficulty=jitter(rep(1,sum(w))))
+})
+# with 12 cell types
+base_ncells <- rep(base_ncells,2)
+sims <- c(sims, lapply(rep(seq_len(nrow(eg)),3), FUN=function(i){
+  x <- simDblCounts(ncells=base_ncells*eg$ncells[i], size=eg$disps[i],
+                    stickiness=c(rep(1,length(base_ncells)-1), eg$effect[i]))
+  combs <- matrix(paste0(rep(colnames(x$observed),nrow(x$observed)), "+", 
+                         rep(colnames(x$observed),each=nrow(x$observed))), 
+                  nrow=nrow(x$observed))
+  w <- upper.tri(combs)
+  data.frame(combination=combs[w], observed=x$observed[w], 
+             expected=x$expected[w], difficulty=jitter(rep(1,sum(w))))
+}))
+nCTs <- rep(c(6,12),each=3*nrow(eg))
+do.tests <- function(sims, eg, type="quasibinomial"){
+  mapply(sim=sims, egi=seq_len(nrow(eg)), nCT=nCTs, SIMPLIFY=FALSE, 
+         FUN=function(sim, egi, nCT){
+    x <- tryCatch(suppressWarnings(clusterStickiness(sim, type=type, inclDiff=NULL, verbose=FALSE)), 
+                  error=function(e){ warning(e); return(NULL) })
+    if(is.null(x)) x <- data.frame(row.names=head(LETTERS,nCT), 
+                                   p.value=rep(1,nCT),
+                                   FDR=rep(1,nCT))
+    x <- x[head(LETTERS,nCT),]
+    x$truth <- FALSE
+    for( f in c("p.value","FDR")) x[[f]][is.na(x[[f]])] <- 1
+    if(eg[egi,"effect"]!=1) x[nrow(x),"truth"] <- TRUE
+    x$disp <- eg[egi,"disps"]
+    x$nclusters <- nCT
+    x$ncells <- eg[egi,"ncells"]
+    x$effect <- eg[egi,"effect"]
+    x
+  })
+}
+scores <- list( poisson=do.tests(sims, eg, type="poisson"),
+                quasibinomial=do.tests(sims, eg, type="quasibinomial"),
+                binomial=do.tests(sims, eg, type="binomial"),
+                nbinom=do.tests(sims, eg, type="nbinom")
+                )
+stick.scores <- lapply(scores, FUN=function(x) dplyr::bind_rows(x))
+```
+
+
+# Enrichment for specific combinations
+
+```{r, warning=FALSE, message=FALSE}
+set.seed(123)
+base_ncells <- c(1500,200,1000,500,300,800)
+base_stickiness <- c(1,1,1,1,1,1)
+eg <- expand.grid(disps=c(0,0,0.5,1,2,5), ncells=c(1,2,5,10), effect=c(1,1,2,3,5))
+sims <- lapply(rep(seq_len(nrow(eg)),3), FUN=function(i){
+  x <- simDblCounts(ncells=base_ncells*eg$ncells[i],size=eg$disps[i],stickiness=base_stickiness,comb=eg$effect[i])
+  combs <- matrix(paste0(rep(colnames(x$observed),nrow(x$observed)), "+", rep(colnames(x$observed),each=nrow(x$observed))), nrow=nrow(x$observed))
+  w <- upper.tri(combs)
+  x <- data.frame( combination=combs[w], observed=x$observed[w], expected=x$expected[w], 
+                   difficulty=jitter(rep(1,sum(w))), truth.comb=x$truth.comb[w] )
+})
+
+do.tests <- function(sims, type="poisson", inclDiff=FALSE){
+  dplyr::bind_rows(lapply(sims, FUN=function(x){
+    res <- tryCatch(doubletPairwiseEnrichment(x, type=type, verbose=FALSE, inclDiff=inclDiff),
+                    error=function(e){
+                      data.frame(combination=x$combination, p.value=rep(1,nrow(x)), FDR=rep(1,nrow(x)))
+                    })
+    res$truth <- res$combination %in% as.character(x$combination[which(x$truth.comb)])
+    res
+  }))
+}
+
+names(types) <- types <- c("binomial","poisson","nbinom")
+comb.scores <- lapply(types, FUN=function(x) do.tests(sims, type=x, inclDiff=TRUE))
+```
+
+```{r}
+save(stick.scores, comb.scores, file="enrichment_results.RData")
+```
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,101 @@
+---
+title: "multisample"
+author: "Pierre-Luc Germain"
+date: "5/17/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scDblFinder)
+  library(PRROC)
+})
+```
+
+
+# Demuxlet datasets (GSE96583)
+
+```{r}
+set.seed(1234)
+dats <- list(
+  B1=readRDS("../other_datasets/batch1.SCE.rds"),
+  B2=readRDS("../other_datasets/batch2.SCE.rds")
+)
+dats$B1$type <- dats$B1$multiplets
+dats$B2$type <- dats$B2$multiplets
+dats$B2$batch <- dats$B2$stim
+dats$B1s <- dats$B1[,sample.int(ncol(dats$B1),size=floor(ncol(dats$B1)/3))]
+dats$B2s <- dats$B2[,sample.int(ncol(dats$B2),size=floor(ncol(dats$B2)/3))]
+```
+
+## Complete split mode
+
+```{r runSplit, cache=TRUE}
+res.split <- lapply(dats, FUN=function(x){
+  colData(scDblFinder(x, samples="batch", multiSampleMode="split"))
+})
+```
+
+## Single model
+
+```{r runSingle, cache=TRUE, warning=FALSE}
+res.single <- lapply(dats, FUN=function(x){
+  colData(scDblFinder(x, samples="batch", multiSampleMode="singleModelSplitThres"))
+})
+```
+
+## Using the true/global clustering, split mode
+
+```{r runSplitClust, cache=TRUE}
+res.splitClust <- lapply(dats, FUN=function(x){
+  x$fastclust <- fastcluster(x)
+  colData(scDblFinder(x, clusters="fastclust", samples="batch", multiSampleMode="split"))
+})
+```
+
+## As one sample
+
+```{r runAsOne, cache=TRUE}
+res.asOne <- lapply(dats, FUN=function(x){
+  colData(scDblFinder(x, dbr=mean(table(x$batch)/100000)))
+})
+```
+
+
+
+# Evaluate the results
+
+```{r}
+evalFn <- function(x){
+  if(is.null(x$truth)) x$truth <- x$type
+  s <- split(x$scDblFinder.score, x$truth)
+  pp <- PRROC::pr.curve(s[[1]], s[[2]])
+  x$truth <- x$truth=="doublet"
+  x$call <- x$scDblFinder.class=="doublet"
+	c(AUPRC=mean(as.numeric(pp[2:3])),
+	  AUROC=PRROC::roc.curve(s[[1]], s[[2]])[[2]],
+	  accuracy=sum(x$truth==x$call)/nrow(x),
+	  TP=sum(x$truth & x$call),
+	  FP=sum(!x$truth & x$call),
+	  FN=sum(x$truth & !x$call))
+}
+```
+
+```{r}
+res <- unlist(list(split=res.split, single=res.single, splitClust=res.splitClust,
+                   asOne=res.asOne), recursive=FALSE)
+#saveRDS(res, file="output.rds")
+res2 <- t(sapply(res, FUN=evalFn))
+res2 <- cbind(as.data.frame(do.call(rbind, strsplit(row.names(res2),"\\."))),
+              res2)
+colnames(res2)[1:2] <- c("method","dataset")
+saveRDS(res2, file="multisample_results.rds")
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+

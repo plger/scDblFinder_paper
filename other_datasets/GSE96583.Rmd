@@ -1,0 +1,54 @@
+---
+title: "Dataset preparation"
+author: "Pierre-Luc Germain"
+date: "5/25/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(BiocGenerics)
+  library(Matrix)
+  library(SingleCellExperiment)
+})
+```
+
+```{r, eval=FALSE}
+# downloaded on 25.05.2021 from:
+download.file("https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE96583&format=file", "GSE96583_RAW.tar")
+utils::untar("GSE96583_RAW.tar")
+```
+
+```{r}
+m1 <- readMM("GSM2560245_A.mat.gz")
+colnames(m1) <- paste0("A-",readLines("GSM2560245_barcodes.tsv.gz"))
+m2 <- readMM("GSM2560246_B.mat.gz")
+colnames(m2) <- paste0("B-",readLines("GSM2560246_barcodes.tsv.gz"))
+m3 <- readMM("GSM2560247_C.mat.gz")
+colnames(m3) <- paste0("C-",readLines("GSM2560247_barcodes.tsv.gz"))
+d1 <- read.delim("GSE96583_batch1.total.tsne.df.tsv.gz")
+row.names(d1) <- paste0(d1$batch, "-", row.names(d1))
+m <- cbind(m1,m2,m3)
+m <- m[,intersect(row.names(d1),colnames(m))]
+row.names(m) <- paste0("G",seq_len(nrow(m)))
+sce <- SingleCellExperiment(list(counts=m), colData=d1[colnames(m),])
+sce <- sce[,sce$multiplets!="ambs"]
+colnames(sce) <- gsub("-",".",colnames(sce))
+saveRDS(sce, "batch1.SCE.rds")
+
+m4 <- readMM("GSM2560248_2.1.mtx.gz")
+colnames(m4) <- paste0("ctrl-",readLines("GSM2560248_barcodes.tsv.gz"))
+m5 <- readMM("GSM2560249_2.2.mtx.gz")
+colnames(m5) <- paste0("stim-",readLines("GSM2560249_barcodes.tsv.gz"))
+d2 <- read.delim("GSE96583_batch2.total.tsne.df.tsv.gz")
+row.names(d2) <- paste0(d2$stim, "-", row.names(d2))
+m <- cbind(m4,m5)
+m <- m[,intersect(row.names(d2),colnames(m))]
+sce <- SingleCellExperiment(list(counts=m), colData=d2[colnames(m),])
+sce <- sce[,sce$multiplets!="ambs"]
+colnames(sce) <- gsub("-",".",colnames(sce))
+sce$cell <- as.factor(sce$cell)
+sce$multiplets <- as.factor(sce$multiplets)
+saveRDS(sce, "batch2.SCE.rds", compress="xz")
+```
+

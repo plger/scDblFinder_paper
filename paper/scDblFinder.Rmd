@@ -1,0 +1,514 @@
+---
+title: "scDblFinder"
+author: "Pierre-Luc Germain"
+date: "2021/06/24"
+output:
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: false
+bibliography: "`r rbbt::bbt_write_bib('biblio.json', overwrite = TRUE)`"
+---
+
+```{r, include=FALSE}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(ComplexHeatmap)
+  library(scDblFinder)
+  library(ggplot2)
+  library(rbbt)
+  library(cowplot)
+  library(MASS)
+})
+theme_set(theme_minimal())
+source("../misc.R")
+```
+
+
+# Introduction
+
+# Results
+
+```{r strategy, out.width="70%", fig.align="center", fig.cap="Overview of the scDblFinder method"}
+knitr::include_graphics("strategy2.svg")
+```
+
+## Efficient doublet detection
+
+Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method.
+If clusters are not provided, and standard pre-processing is applied to quickly generate them:
+to improve speed, cells are first clustered into a large number of meta-cells using kmeans,
+the meta-cells are then clustered using graph-based clustering, and the clusters are propagated back to the original cells.¨
+Artificial doublets are then created by combining cells of different clusters in a proportional fashion.
+Dimensional reduction is then performed on the union of real cells and artificial doublets, and a nearest neighbor network is generated.
+The network is then used to estimate a number of characteristics for each cell, particularly including the proportion of artificial doublets among the nearest neighbors.
+Rather than selecting a specific neighborhood size, the ratio is calculated at different values of *k*, creating multiple predictors which will be used by the classifier.
+A distance-weighted ratio is also included.
+To those are added further cell-wise predictors, such as library size, co-expression scores [based on @baisScdsComputationalAnnotation2020], ambiguity of marker signature (Spearman correlation of cluster markers with cluster averages), etc.
+`scDblFinder` then trains gradient boosted trees to identify, based on these features, artificial doublets from real cells.
+Finally, a thresholding procedure decides the score at which to call a cell a doublet based on the misclassification rate and the expected doublet rate.
+
+A key problem with classifier-based approach is that some of the real cells are mislabeled, in the sense that they are in fact doublets. These can mislead the classifier.
+For this reason, the classifier and thresholding are performed in an iterative fashion:
+at each round, the cells identified as doublets are removed from the training data for the next round.
+In practice, we found that a single additional round is generally sufficient (Supplementary Figure X).
+
+We optimized a number of parameters in the procedure, such as learning hyperparameters and features to include, so as to provide robust default parameters (Supplementary Figure XXX).
+For example, features such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet had a negative impact on performance (Supplementary Figure X), presumably because it lead to over-fitting.
+Indeed, because artificial doublet creation can only approximate real doublets, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing _artificial_ doublets from real cells, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from singlets).
+To illustrate this, we used `scDblFinder` without the dimensional reduction and kNN steps, which arguably involve a loss of information, and training the classifier directly on the expression of the selected genes, resulting in a loss of accuracy in real datasets (Supplementary Figure XX). 
+
+
+## scDblFinder outperforms alternative methods
+
+`scDblFinder` was already compared to existing alternatives in an independent benchmark (see XXX, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021 ).
+Figure \@ref(fig:benchmark) compares the performance of `scDblFinder` to alternatives across their real datasets.
+`scDblFinder` has the highest mean areas under the receiver-operating characteristic (ROC) and precision-recall (PR) curves, ranking first in a majority of datasets, and otherwise typically very close to the first.
+In addition, in runs at a fraction of the time required by the next most accurate methods.
+
+```{r benchmark1, fig.width=8.5, fig.height=4.5, fig.cap="Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve."}
+e <- read.csv("data/results_alternatives.csv")
+res <- readRDS("data/results2.rds")
+res$method <- "scDblFinder"
+
+# res2 <- readRDS("data/results_agg.rds")
+# row.names(res2) <- res2$dataset
+# res2b <- res
+# res2b[,c("AUROC","AUPRC")] <- res2[as.character(res2b$dataset),c("AUROC","AUPRC")]
+# res2b$method <- "scDblFinder-agg"
+# res <- rbind(res, res2b)
+
+e <- rbind(e,res[,colnames(e)])
+e <- e[e$method!="doubletCells",]
+
+elap <- as.data.frame(
+  rbind(matrix(strsplit("doubletCells Scrublet cxds bcds hybrid DoubletDetection DoubletFinder solo DoubletDecon 37 64 5 46 47 380 243 618 903", " ")[[1]], nrow=9),
+        c("scDblFinder",48))) #round(mean(res$elapsed)))))
+colnames(elap) <- c("method","time")
+row.names(elap) <- elap$method
+elap$time <- as.numeric(elap$time)
+
+datmax <- sort(apply(reshape2::dcast(e, method~dataset, value.var="AUPRC")[,-1],
+                     2,na.rm=TRUE,FUN=max))
+
+e$dataset <- factor(e$dataset, levels=names(datmax))
+e$method <- factor(e$method, levels=names(sort(rowsum(e$AUROC, e$method, na.rm=TRUE)[,1])))
+
+getranks <- function(x){
+  y <- rank(x)
+  y[is.na(x)] <- NA
+  y
+}
+
+tr <- reshape2::dcast(e, method~dataset, value.var="AUPRC")
+row.names(tr) <- tr[,1]; tr <- tr[,-1]
+tr2 <- apply(tr,2,FUN=getranks)
+e$AUPRC.rank <- apply(e[,1:2], 1, FUN=function(x) tr2[as.character(x[2]),as.character(x[1])])
+p1 <- ggplot(e, aes(dataset, method, colour=AUPRC, size=AUPRC.rank)) + geom_point() +
+  scale_color_viridis_c() + scale_size(range=c(4,11), breaks=c(1, 4, 8), labels=c("worst","median","best")) +
+  geom_text(aes(label=round(AUPRC,2)), colour=ifelse(e$AUPRC.rank<1.6,NA,ifelse(e$AUPRC>0.5,"black","white")), size=3) +
+  labs(size="AUPRC rank") +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", colour=ifelse(levels(e$method)=="scDblFinder","black","grey30")), 
+        axis.title.y=element_blank(), panel.grid=element_blank())
+elap$method <- factor(elap$method, levels(e$method))
+elap <- elap[order(elap$method, na.last=NA),]
+p2 <- ggplot(elap, aes(method, time)) + geom_col(width=0.75, fill="#00204DFF") + 
+  coord_flip() + scale_y_reverse() + ylab("Mean running\ntime (s)") +
+  theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
+        axis.text.x=element_text(angle=90), panel.grid.major.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+plot_grid(p2,p1,align="h", rel_widths=c(1,7))
+```
+
+
+```{r benchmark2, fig.width=8.5, fig.height=6, fig.cap="Accuracy of doublet identification using alternative methods. The heatmaps are coloured by rank in the respective dataset, and the numbers indicate the actual area under the ROC (above) or PR (below) curve."}
+auprc <- reshape2::dcast(e, method~dataset, value.var="AUPRC")
+auprc <- data.frame(row.names=auprc[,1], auprc[,-1])
+pr.ranks <- apply(auprc,2,FUN=getranks)
+auroc <- reshape2::dcast(e, method~dataset, value.var="AUROC")
+auroc <- data.frame(row.names=auroc[,1], auroc[,-1])
+ro.ranks <- apply(auroc,2,FUN=getranks)
+dimnames(ro.ranks) <- dimnames(pr.ranks) <- dimnames(auroc)
+
+n <- names(rev(sort(rowMeans(ro.ranks, na.rm=TRUE))))
+
+timea <- function(x, axis=TRUE, ...){
+  rowAnnotation("mean\nrunTime"=anno_barplot(x, border=FALSE, ..., axis=axis,
+              gp=gpar(fill="darkred")), #axis_param=list(direction="reverse")),
+              show_annotation_name=axis, annotation_name_rot=90)
+}
+
+auroc <- auroc[n,]
+ro.ranks <- ro.ranks[n,]
+
+nbd <- setNames(rowSums(res[,c("TP","FN")]), res$dataset)[names(datmax)]
+topa <- HeatmapAnnotation("max AUROC"=datmax, show_legend=FALSE,
+                          #"# doublets"=nbd, 
+                          col=list(
+  "max AUROC"=circlize::colorRamp2(breaks=c(0.5,1), c("white","darkgreen"))))
+h1 <- pheatmap(ro.ranks, display_numbers=round(as.matrix(auroc),2), cluster_cols=FALSE, 
+         cluster_rows=FALSE, border=NA, color=viridis::viridis(10), row_title="AUROC",
+         name="Rank", top_annotation=topa, na_col="white", 
+         right_annotation=timea(elap[n,"time"], axis=FALSE), 
+         legend_breaks=c(1,8), legend_labels=c("worst","best"))
+
+n <- names(rev(sort(rowMeans(pr.ranks, na.rm=TRUE))))
+auprc <- auprc[n,]
+pr.ranks <- pr.ranks[n,]
+h2 <- pheatmap(pr.ranks, display_numbers=round(as.matrix(auprc),2), cluster_cols=FALSE, 
+         cluster_rows=FALSE, border=NA, color=viridis::viridis(10), 
+         name="Rank", na_col="white", right_annotation=timea(elap[n,"time"]), 
+         row_title="AUPRC")
+draw(suppressWarnings(h1 %v% h2), merge_legends=TRUE)
+```
+
+## Most heterotypic doublets are accurately identified
+
+Most benchmark datasets have true doublets flagged by their mixing of single-nucleotide polymorphisms from multiple individuals [@kangMultiplexedDropletSinglecell2018].
+In most of these cases, however, the doublets include also inter-individual homotypic doublets (in the sense of being a combination of cells of the same type from different individuals), which are difficult to detect from gene expression (Figure \@ref(fig:adjustedPR)A).
+In addition, they miss heterotypic doublets which are the result of the combination of different cell types from the same individual.
+Indeed, datasets where there is a full correspondence between cell type and individual (such as the human-mouse mixtures, e.g. hm-6k and hm-12k) typically have a much higher area under the ROC and PR curves (Figure \@ref(fig:benchmark)).
+It is therefore likely that the reported accuracy is below the actual one.
+Based on the frequency of the different individuals and cell types in a dataset, it is however possible to infer the expected rate of inter-individual homotypic doublets and intra-individual heterotypic doublets.
+This, in turns, allows us to adjust the measured true positive rate (TPR) and false discovery rate and get a better picture of our ability to detect heterotypic doublets.
+Figure \@ref(fig:adjustedPR)B shows such an analysis for a complex dataset from @kangMultiplexedDropletSinglecell2018 .
+The inflection point of the PR curve roughly coincides with the expected proportion of heterotypic doublets among those flagged as true doublets.
+Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and we estimate that ~90\% of heterotypic doublets can be identified with a real FDR of ~0.2 (a similar analysis for a different sample is show in Supplementary Figure XXX).
+
+```{r doubletTypes}
+set.seed(123)
+d <- data.frame(x=c(rnorm(20,mean=0),rnorm(10,mean=5)),
+                y=c(rnorm(10,mean=5),rnorm(10,mean=0),rnorm(10,mean=0.5)),
+                celltype=rep(LETTERS[1:3],each=10),
+                genotype=sample(rev(letters)[1:3], 30, replace=TRUE))
+wa1 <- which(d$celltype=="A" & d$genotype=="y" & d$x>1)
+wa2 <- which(d$celltype=="C" & d$genotype=="y" & d$y>2)
+wb1 <- which(d$celltype=="A" & d$genotype=="x" & d$y<=min(d$y[which(d$celltype=="A")]))
+wb2 <- which(d$celltype=="B" & d$genotype=="y" & d$y>2)
+wc1 <- which(d$celltype=="C" & d$genotype=="z")
+wc2 <- which(d$celltype=="C" & d$genotype=="x" & d$x>6)
+
+d2 <- data.frame( x=d$x[c(wa1,wb1,wc1)], xend=d$x[c(wa2,wb2,wc2)], 
+                  y=d$y[c(wa1,wb1,wc1)], yend=d$y[c(wa2,wb2,wc2)],
+                  type=c("intra-genotype\nheterotypic", "inter-genotype\nheterotypic",
+                         "inter-genotype\nhomotypic") )
+d2$xmean <- (d2$x+d2$xend)/2
+d2$ymean <- (d2$y+d2$yend)/2
+p <- ggplot(d,aes(x,y)) + geom_segment(data=d2, aes(xend=xend,yend=yend), linetype="dashed") +
+  geom_point(data=d, aes(shape=celltype, colour=genotype), size=4) + 
+  labs(x="PC1", y="PC2") + theme_minimal(base_size=10) + 
+  geom_text(data=d2, aes(x=xmean, y=ymean, label=type), nudge_y=c(0,0,1),
+            nudge_x=c(1.1,-1.2,0)) + 
+  guides(colour=guide_legend(title.position="top"), shape=guide_legend(title.position="top")) +
+  theme(axis.ticks=element_blank(), axis.text=element_blank(), legend.position="bottom")
+```
+
+
+```{r adjustedPR, fig.width=9, fig.height=4, fig.cap="A: Scheme (toy data) representing the different types of doublets. B: Adjusted PR curve. The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.", warning=FALSE}
+e <- readRDS("data/GSM2560248_noAmbiguous.processed.CD.rds")
+# proportion homotypic doublets: these will be called as false negatives
+prop.homotypic <- propHomotypic(e$scDblFinder.cluster)
+# proportion intra-individual doublets: these will be called as false positives
+prop.intraind <- propHomotypic(e$ind)
+p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRUE, 
+               prop.wrong.neg=prop.intraind, prop.wrong.pos=prop.homotypic,
+               showLegend=FALSE) + scale_color_manual(values=c("score"="darkviolet"))
+plot_grid(p + xlim(range(d$x)+c(-0.2,0.2)), p2 + theme(legend.position="none"), 
+          scale=0.95, labels="AUTO")
+```
+
+Another example, for supplementaries:
+
+```{r, fig.width=5, fig.height=4.5}
+sce <- readRDS("../other_datasets/batch1.SCE.rds")
+sce <- scDblFinder(sce[,sce$batch=="A"], clusters="cluster")
+plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE, 
+               prop.wrong.neg=propHomotypic(sce$ind), showLegend=FALSE,
+               prop.wrong.pos=propHomotypic(sce$cluster)) + 
+  ggtitle("pbmc.1A.dm") + scale_color_manual(values=c("score"="darkviolet"))
+```
+
+## Flexible thresholding for doublet calling
+
+Most doublet detection methods provide a 'doublet score' that is higher in doublets than in singlets, 
+and users are left to decide on a threshold beyond which cells will be excluded as doublets. 
+Because `scDblFinder`'s scores come from a classifier, they can directly be interpreted as a probability.
+Nevertheless, some threshold should be set, and it should ideally be placed at the inflection point of the ROC or PR curve, so that most doublets and not too many singlets are excluded.
+While these curves are typically not available in practice, we found that in most cases the `scDblFinder` scores are rapidly flipping very close to the inflection point (Figure \@ref(fig:thresholding)).
+One possibility is therefore to use directly a fixed probability threshold to call doublets.
+In some cases, however, there is a more gradual change in score (e.g. nuc-MULTI), making it more difficult to establish a threshold in a non-arbitrary fashion.
+Building on the fairly tight relationship (especially in 10x-based datasets) between the number of cells captured and the rate of doublets generated [@kangMultiplexedDropletSinglecell2018], another approach consists in setting the threshold based on the number of doublets (or heterotypic doublets) one expects to find in the data.
+`scDblFinder` includes a thresholding method which combines both rationales, and attempts to minimize both the proportion of artificial doublets being misclassified and the deviation from the expected doublet rate.
+The identified thresholds are shown in Figure \@ref(fig:thresholding)A-B, and compared to thresholds based on the expected doublet rate in (Figure \@ref(fig:thresholding)C).
+In general, `scDblFinder` thresholds are closer to the inflection point.
+
+
+```{r thresholding, fig.height=8, fig.width=9, eval=TRUE, warning=FALSE, fig.cap="ROC curves (with square-root transformation on the x axis) of the different benchmark datasets. In B-C, the colors indicate the scDblFinder doublet scores, and the crosses indicate the thresholds established through the thresholding method (B) or by taking the expected number of heterotypic doublets (C)."}
+ds <- readRDS("data/benchmark_datasets_called.CD2.rds")
+ds <- lapply(ds, FUN=function(x){
+  ndb <- nrow(x)*((nrow(x)*0.01)/1000)
+  ndb <- round(ndb * (1-propHomotypic(x$cluster)))
+  th <- sort(x$scDblFinder.score, decreasing=TRUE)[ndb]
+  x$called.dbrOnly <- factor(1+(x$scDblFinder.score>=th),1:2,c("singlet","doublet"))
+  x
+})
+getRocs <- function(ds, score="scDblFinder.score", class="scDblFinder.class", merge=TRUE){
+  ret <- lapply(ds, FUN=function(x){
+    d <- data.frame(truth=as.integer(x$truth=="doublet"),
+                    score=x[[score]],
+                    called=x[[class]]=="doublet")
+    d <- d[!is.na(d$truth),]
+    d <- d[order(d$score, decreasing=TRUE),]
+    d$FPR=cumsum(!d$truth)/sum(!d$truth)
+    d$FDR=cumsum(!d$truth)/seq_along(d$truth)
+    d$TPR=cumsum(d$truth)/sum(d$truth)
+    d
+  })
+  if(merge) ret <- dplyr::bind_rows(ret, .id="Dataset")
+  ret
+}
+plotROCscores <- function(rocs, legend=FALSE, addRandom=TRUE){
+  w <- which(!rocs$called & !duplicated(rocs[,c("Dataset","called")]))
+  rot <- rocs[w-1,]
+  p <- ggplot(rocs, aes(FPR, TPR, colour=score)) + scale_x_sqrt() + 
+    geom_line(colour="grey", aes(group=Dataset)) + geom_point(size=0.8) + 
+    geom_point(data=rot, size=1, colour="black") + geom_point(data=rot, shape=9, size=5) +
+    scale_colour_viridis_c(direction=-1) + 
+    guides(colour=guide_colourbar(title.position="top", barwidth=8, titlle.hjust=0.5)) + 
+    labs(colour="scDblFinder\nscore")
+  if(legend){
+    p <- p + theme(legend.position="bottom")
+  }else{
+    p <- p + theme(legend.position="none")
+  }
+  if(addRandom) p <- p +
+    geom_line(data=data.frame(FPR=(0:100)/100, TPR=(0:100)/100), 
+              colour="darkgrey", linetype="dashed")
+  p
+}
+rocs <- getRocs(ds)
+w <- which(!rocs$called & !duplicated(rocs[,c("Dataset","called")]))
+rot <- rocs[w-1,]
+cols <- pipeComp::getQualitativePalette(length(ds))
+names(cols) <- names(ds)
+p1 <- ggplot(rocs, aes(FPR, TPR, colour=Dataset)) + geom_line(size=1.3) + 
+  geom_point(data=rot, size=4, colour="black") + geom_point(data=rot, size=3) +
+  scale_x_sqrt() + scale_colour_manual(values=cols) +
+  guides(colour=guide_legend(title.position="top", title.hjust=0.5, ncol=3)) + 
+  theme(legend.position="bottom")
+
+p2 <- plotROCscores(rocs, TRUE)
+p3 <- plotROCscores(getRocs(ds, class="called.dbrOnly"))
+
+plot_grid(
+  p1 + theme(legend.position="none"),
+  plot_grid(ggpubr::get_legend(p1), ggpubr::get_legend(p2), nrow=2),
+  p2 + theme(legend.position="none") + ggtitle("Using scDblFinder thresholds"), 
+  p3 + ggtitle("Using expected # of heterotypic doublets"),
+  labels=c("A",NA,"B","C"), nrow=2)
+```
+
+
+```{r}
+getderiv <- function(x){
+  model <- smooth.spline(x$FPR, x$TPR)
+  predict(model, x=min(x$score[x$called]), deriv=1)$y
+}
+der <- sapply(getRocs(ds, merge=FALSE), FUN=getderiv)
+der.dbr <- sapply(getRocs(ds, class="called.dbrOnly", merge=FALSE), FUN=getderiv)
+d <- data.frame(method=rep(c("scDblFinder","Expected #\nheterotypic"),each=length(der)),
+                dataset=rep(names(der),2), ROC.derivative=c(der,der.dbr))
+ggplot(d, aes(dataset, ROC.derivative, fill=method)) + geom_col(position="dodge") + 
+  coord_flip() + geom_hline(yintercept=0)
+```
+
+
+## Doublet detection across multiple samples/captures
+
+Multiple samples are often profiled and analyzed together, with the very common risk of batch effects (either technical or biological) across samples (@lutgeCellMixSQuantifyingVisualizing2021).
+Therefore, while the cells from all samples might in principle provide more information for doublet detection than a single sample can afford on its own, this must be weighted against the risk of bias due to technical differences.
+To investigate this, we implemented different multi-sample approaches and tested them on two real multi-samples datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Figure \@ref(fig:multisample)).
+
+```{r multisample, fig.width=8, fig.height=4, fig.cap="Comparison of four different multi-sample modes across four (multi-sample) datasets (the datasets with the 's' suffix are versions downsampled to 30%)."}
+res2 <- readRDS("../analyses/multisample_results.rds")
+res2 <- reshape2::melt(res2, id.vars=c("method","dataset"))
+res2 <- res2[res2$variable %in% c("AUPRC","AUROC"),]
+res2$method <- as.factor(res2$method)
+levels(res2$method) <- c("as one","single model\nsplit thresholds", "full split", "split with\nglobal clusters")
+ggplot(res2, aes(dataset, value, fill=method)) +
+  geom_col(position="dodge") + facet_wrap(~variable) +
+  labs(x="Dataset", y="") + coord_flip() + 
+  theme(legend.position="bottom")
+```
+
+The different multi-sample strategies had only a minor impact on the accuracy of the identification.
+Based on these results, the best overall strategy appears to be to process all samples as if they were one, however in our experience this can lead to biases against some samples when there are very large variations (e.g. in number of cells or coverage) across samples (not shown). This approach also greatly increases running time.
+In contrast, running the samples fully separately is computationally highly efficient, and is often equally accurate.
+
+## Usage on datasets without cluster structure
+
+`scDblFinder`'s cluster-based approach can potentially become problematic when the data is not structured into clusters, but for instance into a developmental trajectory.
+In practice, however, the clustering strategy proved effective also in these scenario, and better than purely random doublets (Suppl. Figure X).
+We however recommend a sufficiently high clustering resolution in such contexts, which for instance can be achieved by setting the `clusters` argument to the desired number of clusters.
+
+
+## scATACseq: aggregating rather than selecting features
+
+We next investigated whether `scDblFinder` could be applied to other types of single-cell data prone to doublets, such as single-cell ATACseq.
+To evaluate this, we used the mixture of 10 cell-lines from @granjaArchRScalableSoftware2021 .
+With default parameters, `scDblFinder` performed very poorly (Figure \@ref(fig:scATAC)).
+This is chiefly because `scDblFinder` follows the common scRNAseq strategy of selecting an informative subset of the features, while ATACseq reads are much more distributed across the genome.
+Indeed, increasing the number of features gradually increases accuracy (Supplementary Figure XX).
+However, working with all features (i.e. peaks) is computationally very expensive.
+An alternative to both approaches is to begin by reducing the size of the dataset by _aggregating_ correlated features into a relatively small set, thereby using information from all.
+These aggregated features can then directly be used as the space in which to calculate distances.
+This method yielded as good a performance (better FDR) as specialized single-cell ATACseq software (Figure \@ref(fig:scATAC)).
+
+
+```{r scATAC, fig.cap="Performance of scDblFinder with default (.raw) parameters or on aggregated features (.aggregation) versus ArchR."}
+cd <- readRDS("../other_datasets/atac.colData.rds")
+plotROCs(list(ArchR=cd$DoubletEnrichment, "scDblFinder\nraw"=cd$scDblFinder.raw, "scDblFinder\naggregation"=cd$scDblFinder.score), truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
+```
+
+## Doublet characterization
+
+Because doublets are generated between clusters, we can keep track of their origins, and use this to infer the clusters composing real doublets. Unfortunately, this doesn't work very well (Figure \@ref(fig:dblTypes)) -- neither on real data nor even on simulated doublets -- and even training a classifier directly on the problem fails. The problem seems to be that a doublet that's 80% A and 20% B can look a lot like one that's 80% A and 20% C...
+
+```{r dblTypes, fig.cap="Confusion matrix of the doublet type (i.e. originating clusters) identification."}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+sce <- scDblFinder(sce, sce$phenoid)
+CD <- colData(sce)
+CDd <- CD[CD$scDblFinder.class=="doublet" & !CD$scDblFinder.originAmbiguous & CD$demuxlet_cls=="DBL",]
+CDd$scDblFinder.mostLikelyOrigin <- factor(gsub("H838","H8383",CDd$scDblFinder.mostLikelyOrigin),
+                                           levels(CDd$demuxlet.dbl.type))
+Heatmap(unclass(table(call=CDd$scDblFinder.mostLikelyOrigin, truth=CDd$demuxlet.dbl.type)),
+        cluster_columns=FALSE, cluster_rows=FALSE)
+```
+
+Assuming we had better ways of doing this, we could then go on to the next step...
+
+## Differential doublet abundance
+
+The characterization of the origins of doublets allowed us to investigate whether more doublets of given types were found then expected.
+We defined two forms of doublet enrichment (Figure \@ref(fig:dblenr_scheme)):
+i) enrichment in doublets formed by a specific combination of celltypes, or
+ii) enrichment in doublets involving a given cell type, denoted 'sticky'.
+
+
+```{r dblenr_scheme, fig.width=6, fig.height=5, fig.cap="Doublet enrichment. Panel B represents the proportion of different doublet types from random expectations based on the cell type abundances in A. C and D then represent the log2-enrichment over this expectation in two different doublet enrichment scenarios."}
+cln <- c(a=500,b=100,c=300,d=500)
+n <- probs <- (cln/sum(cln)) %*% t(cln/sum(cln))
+row.names(probs) <- row.names(n) <- names(cln)
+probs[lower.tri(n)] <- n[lower.tri(n)] <- NA
+diag(probs) <- diag(n) <- NA
+probs <- probs/sum(probs,na.rm=TRUE)
+set.seed(123)
+probs1 <- probs2 <- probs
+probs1[,4] <- probs1[,4]*2.5
+probs2[2,4] <- probs2[2,4]*2.5
+n1 <- n2 <- n
+n1[upper.tri(n)] <- rpois(6,lambda=1500*probs1[upper.tri(n)])
+n2[upper.tri(n)] <- rpois(6,lambda=1500*probs2[upper.tri(n)])
+#n[lower.tri(n)] = t(n)[lower.tri(n)]
+
+enr1 <- log2( (n1/sum(n1,na.rm=TRUE))/probs )
+enr2 <- log2( (n2/sum(n2,na.rm=TRUE))/probs )
+
+pdh <- function(x, ...) return(
+    Heatmap(x[-4,-1], cluster_rows=FALSE, cluster_columns=FALSE, na_col="white", 
+          column_names_side="top", column_names_rot=90, row_title="Cell types", 
+          column_title="Cell types", column_title_side="bottom", heatmap_width=unit(5,"cm"),
+          heatmap_height=unit(5,"cm"), ...))
+
+plot_grid(
+  plot_grid(
+    ggplot(data.frame(celltype=names(cln), proportion=cln/sum(cln)), aes(celltype, proportion)) + 
+      geom_col() + theme_cowplot() + xlab("Cell type"),
+    grid.grabExpr(draw(pdh(probs, name="%", col=viridis::viridis(100)))),
+    nrow=1, hjust=0, rel_widths=c(4,5), scale=c(0.8,1),
+    labels=c("A: Cell type composition","B: Expected doublet proportions")),
+  plot_grid(
+    grid.grabExpr(draw(pdh(enr1, name="log2\nenrichment"))),
+    grid.grabExpr(draw(pdh(enr2, name="log2\nenrichment"))),
+    labels=c("C: 'Sticky' cell type", "D: Enriched combination"),
+  nrow=1, hjust=0), nrow=2
+)
+```
+
+### Cell type stickiness
+
+The `stickiness' of each cell type can be evaluated by fitting a single generalized linear model on the observed abundance of doublets of each type, in the following way:
+
+$$
+log(\text{observed}_i+0.1) = log(\text{expected}_i) + \beta_z \cdot log(\text{difficulty}_i) +
+\beta_a a_i + \beta_b b_i + \beta_c c_i + ... +\epsilon_i ,
+$$
+where $observed_i$ and $expected_i$ represent the numbers of doublets formed by specific combination $i$ of cell types which are respectively observed or expected from random combinations, and $a_i$, $b_i$ and $c_i$ (etc) indicate whether or not (0/1) the doublet involves each cell type.
+Because some doublets are easier to identify than others, some deviation from their expected abundance is typically observed.
+For this reason, a $difficult_i$ term is optionally included, indicating the difficulty in identifying doublets of type $i$, estimated from the misclassification of `scDblFinder`'s artificial doublets (by default, the term is included if at least 7 clusters).
+A $\beta_a$ significantly different from zero, then, indicates that cell type _a_ forms more or less doublets than expected -- if positive, it indicates cluster `stickiness'.
+
+(NB: for binomial distributions, logit instead of log)
+
+We tested the performance of different underlying distributions using simulations, where the actual number of doublets of each type is generated from expectation with or without added stickiness (as factors of 1 to 3 on the probability) using negative binomial distributions with different dispersion parameters.
+The quasi-binomial (using the mean of observed and expected counts as observational weights) and negative binomial models showed the best performance, but the output probabilities were not well calibrated, and many false positives are reported at a nominal FDR of 0.05.
+This was robust across different over-dispersion values.
+
+
+```{r}
+load("../analyses/enrichment_results.RData")
+scores <- stick.scores
+```
+
+```{r, fig.width=10, fig.height=4, fig.cap="Performance of the cluster stickiness test using different underlying distributions."}
+p1 <- plotROCs(lapply(scores, FUN=function(x) 1-x$FDR), scores[[2]]$truth, th=0.95, size=4)
+p2 <- plotROCs(lapply(scores, FUN=function(x) 1-x$FDR), scores[[2]]$truth, th=0.95, size=4, fdr=TRUE) + theme(legend.position="none")
+le <- get_legend( p1 + theme(legend.box.margin = margin(0, 0, 0, 12)) )
+plot_grid(p1 + theme(legend.position="none"),p2,le,rel_widths=c(3,3,1),nrow=1)
+```
+
+#### Splitting by dispersion
+
+```{r}
+scdi <- lapply(split(seq_along(scores[[1]]$disp),scores[[1]]$disp), FUN=function(i){
+  lapply(scores, FUN=function(x) x[i,])
+})
+names(scdi) <- paste0("size=",names(scdi))
+names(scdi)[1] <- "Poisson"
+pl <- lapply(names(scdi), FUN=function(x)
+  plotROCs(lapply(scdi[[x]], FUN=function(x) 1-x$FDR), scdi[[x]][[1]]$truth, th=0.95, size=4, fdr=TRUE) +
+    ggtitle(x))
+leg <- get_legend(pl[[1]])
+pl <- lapply(pl, FUN=function(x) x + theme(legend.position="none"))
+plot_grid(plotlist=pl, leg, nrow=2)
+```
+
+
+### Enrichment for specific combinations
+
+We next sought to establish a test for the enrichment of specific combinations.
+Here, we simply computed the probability of the observed counts for each combination using different models.
+Briefly, we first fit the following global negative binomial model: 
+
+$$
+log(\text{observed}_i) = \alpha + log(\text{expected}_i) + \beta \cdot log(\text{difficulty}_i),
+$$
+Then, the fitted values are then considered the expected abundance, and the probability of each count given this method is calculated for different underlying distributions (for the negative binomial, the global dispersion parameter was used).
+
+
+```{r, fig.width=10, fig.height=4, fig.cap="Performance of combination enrichment test using different underlying distributions."}
+scores <- comb.scores
+p1 <- plotROCs(lapply(scores, FUN=function(x) 1-x$FDR), scores[[2]]$truth, th=0.95, size=4)
+p2 <- plotROCs(lapply(scores, FUN=function(x) 1-x$FDR), scores[[2]]$truth, th=0.95, size=4, fdr=TRUE) + theme(legend.position="none")
+le <- get_legend( p1 + theme(legend.box.margin = margin(0, 0, 0, 12)) )
+plot_grid(p1 + theme(legend.position="none"),p2,le,rel_widths=c(3,3,1),nrow=1)
+```
+
+All methods failed to appropriately control FDR...
+
+
+
+# Discussion
+
+
+# References

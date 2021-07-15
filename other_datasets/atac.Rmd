@@ -1,0 +1,23 @@
+---
+title: "ATAC"
+author: "Pierre-Luc Germain"
+date: "2/23/2021"
+output: html_document
+---
+
+GSE162690_CellLine_HighLoading fragment file downloaded from GEO and pre-processed to peak level using ArchR 1.0.1
+
+```{r}
+suppressPackageStartupMessages({
+  library(scDblFinder)
+  library(SingleCellExperiment)
+})
+sce <- readRDS("GSE162690.SCE.rds")
+sce <- scDblFinder(sce)
+sce$scDblFinder.raw <- sce$scDblFinder.score
+sce <- scDblFinder(sce, aggregateFeatures=TRUE, nfeatures=25, processing="normFeatures")
+
+CD <- colData(sce)
+saveRDS(CD, file="atac.colData.rds")
+```
+
