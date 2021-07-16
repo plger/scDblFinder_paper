@@ -19,8 +19,8 @@ suppressPackageStartupMessages({
 ```{r}
 set.seed(1234)
 dats <- list(
-  B1=readRDS("../other_datasets/batch1.SCE.rds"),
-  B2=readRDS("../other_datasets/batch2.SCE.rds")
+  B1=readRDS("../other_datasets/GSE96583.batch1.SCE.rds"),
+  B2=readRDS("../other_datasets/GSE96583.batch2.SCE.rds")
 )
 dats$B1$type <- dats$B1$multiplets
 dats$B2$type <- dats$B2$multiplets

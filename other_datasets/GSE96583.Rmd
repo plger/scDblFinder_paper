@@ -17,6 +17,11 @@ suppressPackageStartupMessages({
 # downloaded on 25.05.2021 from:
 download.file("https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE96583&format=file", "GSE96583_RAW.tar")
 utils::untar("GSE96583_RAW.tar")
+for(f in c(
+  "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE96nnn/GSE96583/suppl/GSE96583_batch1.total.tsne.df.tsv.gz",
+  "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE96nnn/GSE96583/suppl/GSE96583_batch2.total.tsne.df.tsv.gz")){
+    download.file(f, basename(f))
+  }
 ```
 
 ```{r}
@@ -34,7 +39,7 @@ row.names(m) <- paste0("G",seq_len(nrow(m)))
 sce <- SingleCellExperiment(list(counts=m), colData=d1[colnames(m),])
 sce <- sce[,sce$multiplets!="ambs"]
 colnames(sce) <- gsub("-",".",colnames(sce))
-saveRDS(sce, "batch1.SCE.rds")
+saveRDS(sce, "GSE96583.batch1.SCE.rds")
 
 m4 <- readMM("GSM2560248_2.1.mtx.gz")
 colnames(m4) <- paste0("ctrl-",readLines("GSM2560248_barcodes.tsv.gz"))
@@ -49,6 +54,6 @@ sce <- sce[,sce$multiplets!="ambs"]
 colnames(sce) <- gsub("-",".",colnames(sce))
 sce$cell <- as.factor(sce$cell)
 sce$multiplets <- as.factor(sce$multiplets)
-saveRDS(sce, "batch2.SCE.rds", compress="xz")
+saveRDS(sce, "GSE96583.batch2.SCE.rds", compress="xz")
 ```
 
