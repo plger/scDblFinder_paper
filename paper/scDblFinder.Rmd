@@ -65,33 +65,16 @@ Figure \@ref(fig:benchmark) compares the performance of `scDblFinder` to alterna
 `scDblFinder` has the highest mean areas under the receiver-operating characteristic (ROC) and precision-recall (PR) curves, ranking first in a majority of datasets, and otherwise typically very close to the first.
 In addition, in runs at a fraction of the time required by the next most accurate methods.
 
-```{r benchmark1, fig.width=8.5, fig.height=4.5, fig.cap="Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve."}
-e <- read.csv("data/results_alternatives.csv")
-res <- readRDS("data/results2.rds")
-res$method <- "scDblFinder"
-
-# res2 <- readRDS("data/results_agg.rds")
-# row.names(res2) <- res2$dataset
-# res2b <- res
-# res2b[,c("AUROC","AUPRC")] <- res2[as.character(res2b$dataset),c("AUROC","AUPRC")]
-# res2b$method <- "scDblFinder-agg"
-# res <- rbind(res, res2b)
-
-e <- rbind(e,res[,colnames(e)])
-e <- e[e$method!="doubletCells",]
-
-elap <- as.data.frame(
-  rbind(matrix(strsplit("doubletCells Scrublet cxds bcds hybrid DoubletDetection DoubletFinder solo DoubletDecon 37 64 5 46 47 380 243 618 903", " ")[[1]], nrow=9),
-        c("scDblFinder",48))) #round(mean(res$elapsed)))))
-colnames(elap) <- c("method","time")
-row.names(elap) <- elap$method
-elap$time <- as.numeric(elap$time)
+```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve."}
+e <- readRDS("../benchmark/benchmark.results.rds")
 
 datmax <- sort(apply(reshape2::dcast(e, method~dataset, value.var="AUPRC")[,-1],
                      2,na.rm=TRUE,FUN=max))
-
 e$dataset <- factor(e$dataset, levels=names(datmax))
-e$method <- factor(e$method, levels=names(sort(rowsum(e$AUROC, e$method, na.rm=TRUE)[,1])))
+e$method <- factor(e$method, levels=names(sort(rowsum(e$AUPRC, e$method, na.rm=TRUE)[,1])))
+levels(e$method) <- gsub("bcds","scds::bcds",levels(e$method))
+levels(e$method) <- gsub("cxds","scds::cxds",levels(e$method))
+levels(e$method) <- gsub("hybrid","scds::hybrid",levels(e$method))
 
 getranks <- function(x){
   y <- rank(x)
@@ -103,63 +86,23 @@ tr <- reshape2::dcast(e, method~dataset, value.var="AUPRC")
 row.names(tr) <- tr[,1]; tr <- tr[,-1]
 tr2 <- apply(tr,2,FUN=getranks)
 e$AUPRC.rank <- apply(e[,1:2], 1, FUN=function(x) tr2[as.character(x[2]),as.character(x[1])])
-p1 <- ggplot(e, aes(dataset, method, colour=AUPRC, size=AUPRC.rank)) + geom_point() +
-  scale_color_viridis_c() + scale_size(range=c(4,11), breaks=c(1, 4, 8), labels=c("worst","median","best")) +
+
+nmeth <- length(unique(res$method))
+p1 <- ggplot(e, aes(dataset, method, colour=AUPRC, size=AUPRC.rank^2)) + geom_point() +
+  scale_color_viridis_c() + scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
   geom_text(aes(label=round(AUPRC,2)), colour=ifelse(e$AUPRC.rank<1.6,NA,ifelse(e$AUPRC>0.5,"black","white")), size=3) +
   labs(size="AUPRC rank") +
   theme(axis.text.x=element_text(angle=45, hjust=1),
         axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", colour=ifelse(levels(e$method)=="scDblFinder","black","grey30")), 
         axis.title.y=element_blank(), panel.grid=element_blank())
-elap$method <- factor(elap$method, levels(e$method))
-elap <- elap[order(elap$method, na.last=NA),]
-p2 <- ggplot(elap, aes(method, time)) + geom_col(width=0.75, fill="#00204DFF") + 
+
+
+p2 <- ggplot(e, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") + 
   coord_flip() + scale_y_reverse() + ylab("Mean running\ntime (s)") +
   theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
         axis.text.x=element_text(angle=90), panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank())
 plot_grid(p2,p1,align="h", rel_widths=c(1,7))
-```
-
-
-```{r benchmark2, fig.width=8.5, fig.height=6, fig.cap="Accuracy of doublet identification using alternative methods. The heatmaps are coloured by rank in the respective dataset, and the numbers indicate the actual area under the ROC (above) or PR (below) curve."}
-auprc <- reshape2::dcast(e, method~dataset, value.var="AUPRC")
-auprc <- data.frame(row.names=auprc[,1], auprc[,-1])
-pr.ranks <- apply(auprc,2,FUN=getranks)
-auroc <- reshape2::dcast(e, method~dataset, value.var="AUROC")
-auroc <- data.frame(row.names=auroc[,1], auroc[,-1])
-ro.ranks <- apply(auroc,2,FUN=getranks)
-dimnames(ro.ranks) <- dimnames(pr.ranks) <- dimnames(auroc)
-
-n <- names(rev(sort(rowMeans(ro.ranks, na.rm=TRUE))))
-
-timea <- function(x, axis=TRUE, ...){
-  rowAnnotation("mean\nrunTime"=anno_barplot(x, border=FALSE, ..., axis=axis,
-              gp=gpar(fill="darkred")), #axis_param=list(direction="reverse")),
-              show_annotation_name=axis, annotation_name_rot=90)
-}
-
-auroc <- auroc[n,]
-ro.ranks <- ro.ranks[n,]
-
-nbd <- setNames(rowSums(res[,c("TP","FN")]), res$dataset)[names(datmax)]
-topa <- HeatmapAnnotation("max AUROC"=datmax, show_legend=FALSE,
-                          #"# doublets"=nbd, 
-                          col=list(
-  "max AUROC"=circlize::colorRamp2(breaks=c(0.5,1), c("white","darkgreen"))))
-h1 <- pheatmap(ro.ranks, display_numbers=round(as.matrix(auroc),2), cluster_cols=FALSE, 
-         cluster_rows=FALSE, border=NA, color=viridis::viridis(10), row_title="AUROC",
-         name="Rank", top_annotation=topa, na_col="white", 
-         right_annotation=timea(elap[n,"time"], axis=FALSE), 
-         legend_breaks=c(1,8), legend_labels=c("worst","best"))
-
-n <- names(rev(sort(rowMeans(pr.ranks, na.rm=TRUE))))
-auprc <- auprc[n,]
-pr.ranks <- pr.ranks[n,]
-h2 <- pheatmap(pr.ranks, display_numbers=round(as.matrix(auprc),2), cluster_cols=FALSE, 
-         cluster_rows=FALSE, border=NA, color=viridis::viridis(10), 
-         name="Rank", na_col="white", right_annotation=timea(elap[n,"time"]), 
-         row_title="AUPRC")
-draw(suppressWarnings(h1 %v% h2), merge_legends=TRUE)
 ```
 
 ## Most heterotypic doublets are accurately identified
@@ -175,35 +118,6 @@ Figure \@ref(fig:adjustedPR)B shows such an analysis for a complex dataset from 
 The inflection point of the PR curve roughly coincides with the expected proportion of heterotypic doublets among those flagged as true doublets.
 Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and we estimate that ~90\% of heterotypic doublets can be identified with a real FDR of ~0.2 (a similar analysis for a different sample is show in Supplementary Figure XXX).
 
-```{r doubletTypes}
-set.seed(123)
-d <- data.frame(x=c(rnorm(20,mean=0),rnorm(10,mean=5)),
-                y=c(rnorm(10,mean=5),rnorm(10,mean=0),rnorm(10,mean=0.5)),
-                celltype=rep(LETTERS[1:3],each=10),
-                genotype=sample(rev(letters)[1:3], 30, replace=TRUE))
-wa1 <- which(d$celltype=="A" & d$genotype=="y" & d$x>1)
-wa2 <- which(d$celltype=="C" & d$genotype=="y" & d$y>2)
-wb1 <- which(d$celltype=="A" & d$genotype=="x" & d$y<=min(d$y[which(d$celltype=="A")]))
-wb2 <- which(d$celltype=="B" & d$genotype=="y" & d$y>2)
-wc1 <- which(d$celltype=="C" & d$genotype=="z")
-wc2 <- which(d$celltype=="C" & d$genotype=="x" & d$x>6)
-
-d2 <- data.frame( x=d$x[c(wa1,wb1,wc1)], xend=d$x[c(wa2,wb2,wc2)], 
-                  y=d$y[c(wa1,wb1,wc1)], yend=d$y[c(wa2,wb2,wc2)],
-                  type=c("intra-genotype\nheterotypic", "inter-genotype\nheterotypic",
-                         "inter-genotype\nhomotypic") )
-d2$xmean <- (d2$x+d2$xend)/2
-d2$ymean <- (d2$y+d2$yend)/2
-p <- ggplot(d,aes(x,y)) + geom_segment(data=d2, aes(xend=xend,yend=yend), linetype="dashed") +
-  geom_point(data=d, aes(shape=celltype, colour=genotype), size=4) + 
-  labs(x="PC1", y="PC2") + theme_minimal(base_size=10) + 
-  geom_text(data=d2, aes(x=xmean, y=ymean, label=type), nudge_y=c(0,0,1),
-            nudge_x=c(1.1,-1.2,0)) + 
-  guides(colour=guide_legend(title.position="top"), shape=guide_legend(title.position="top")) +
-  theme(axis.ticks=element_blank(), axis.text=element_blank(), legend.position="bottom")
-```
-
-
 ```{r adjustedPR, fig.width=9, fig.height=4, fig.cap="A: Scheme (toy data) representing the different types of doublets. B: Adjusted PR curve. The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.", warning=FALSE}
 e <- readRDS("data/GSM2560248_noAmbiguous.processed.CD.rds")
 # proportion homotypic doublets: these will be called as false negatives
@@ -213,7 +127,8 @@ prop.intraind <- propHomotypic(e$ind)
 p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRUE, 
                prop.wrong.neg=prop.intraind, prop.wrong.pos=prop.homotypic,
                showLegend=FALSE) + scale_color_manual(values=c("score"="darkviolet"))
-plot_grid(p + xlim(range(d$x)+c(-0.2,0.2)), p2 + theme(legend.position="none"), 
+plot_grid(dblTypesScheme + xlim(range(d$x)+c(-0.2,0.2)), 
+          p2 + theme(legend.position="none"), 
           scale=0.95, labels="AUTO")
 ```
 
@@ -308,21 +223,6 @@ plot_grid(
   labels=c("A",NA,"B","C"), nrow=2)
 ```
 
-
-```{r}
-getderiv <- function(x){
-  model <- smooth.spline(x$FPR, x$TPR)
-  predict(model, x=min(x$score[x$called]), deriv=1)$y
-}
-der <- sapply(getRocs(ds, merge=FALSE), FUN=getderiv)
-der.dbr <- sapply(getRocs(ds, class="called.dbrOnly", merge=FALSE), FUN=getderiv)
-d <- data.frame(method=rep(c("scDblFinder","Expected #\nheterotypic"),each=length(der)),
-                dataset=rep(names(der),2), ROC.derivative=c(der,der.dbr))
-ggplot(d, aes(dataset, ROC.derivative, fill=method)) + geom_col(position="dodge") + 
-  coord_flip() + geom_hline(yintercept=0)
-```
-
-
 ## Doublet detection across multiple samples/captures
 
 Multiple samples are often profiled and analyzed together, with the very common risk of batch effects (either technical or biological) across samples (@lutgeCellMixSQuantifyingVisualizing2021).
@@ -367,7 +267,10 @@ This method yielded as good a performance (better FDR) as specialized single-cel
 
 ```{r scATAC, fig.cap="Performance of scDblFinder with default (.raw) parameters or on aggregated features (.aggregation) versus ArchR."}
 cd <- readRDS("../other_datasets/atac.colData.rds")
-plotROCs(list(ArchR=cd$DoubletEnrichment, "scDblFinder\nraw"=cd$scDblFinder.raw, "scDblFinder\naggregation"=cd$scDblFinder.score), truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
+plotROCs(list( ArchR=cd$DoubletEnrichment, 
+               "scDblFinder\nraw"=cd$scDblFinder.raw, 
+               "scDblFinder\naggregation"=cd$scDblFinder.score), 
+         truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
 ```
 
 ## Doublet characterization
