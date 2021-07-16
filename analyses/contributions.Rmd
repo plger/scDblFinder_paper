@@ -1,0 +1,71 @@
+---
+title: "Contributions of original cell types"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(nnls)
+  library(edgeR)
+  library(SingleCellExperiment)
+  library(ggplot2)
+  library(ggrepel)
+})
+theme_set(theme_minimal())
+```
+
+
+```{r}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+md <- colData(sce)
+md$class <- as.character(md$phenoid)
+md$isDoublet <- md$demuxlet_cls=="DBL"
+w <- which(md$isDoublet)
+md$class[w] <- as.character(md$demuxlet.dbl.type[w])
+
+ag <- aggregate(md$total_counts, by=list(class=md$class), FUN=median)
+row.names(ag) <- ag$class
+ag$isDoublet <- grepl("+",ag$class,fixed=TRUE)
+ag$mad <- aggregate(md$total_counts, by=list(class=md$class), FUN=mad)[,2]
+ag$sum <- sapply(strsplit(ag$class,"+",fixed=TRUE), FUN=function(x) sum(ag[x,"x"]))
+
+ggplot(ag, aes(sum, x, colour=isDoublet, label=class)) + 
+  geom_abline(linetype="dashed", colour="grey") + geom_point(size=2) +
+  geom_segment(aes(x=sum,xend=sum,y=x-mad,yend=x+mad)) + 
+  geom_text_repel(colour="black") + 
+  labs(x="Sum of median library sizes", y="Observed median library size")
+```
+
+The median library size of doublets is systematically lower than the sum of median library sizes of composing cell types. 
+
+```{r, fig.width=8, fig.height=7}
+dbls <- split(w, md$class[w])
+dbls <- dbls[grep("\\+",names(dbls))]
+cs <- sapply(split(seq_len(nrow(md))[-w],md$phenoid[-w]), FUN=function(i) rowSums(assay(sce)[,i,drop=FALSE]))
+cs <- as.matrix(edgeR::cpm(calcNormFactors(DGEList(cs))))
+dbls <- dplyr::bind_rows(lapply( setNames(names(dbls),names(dbls)), FUN=function(comb){
+  orig <- strsplit(comb,"+",fixed=TRUE)[[1]]
+  data.frame(
+    lsize=colSums(assay(sce)[,dbls[[comb]],drop=FALSE]),
+    expectedProp=ag[orig[1],"x"]/(ag[orig[1],"x"]+ag[orig[2],"x"]),
+    prop.type1=apply(as.matrix(assay(sce)[,dbls[[comb]],drop=FALSE]), 2, FUN=function(x){
+      tryCatch({
+        mod <- nnls::nnls(cs[,orig],x)
+        coef(mod)[1]/sum(coef(mod))
+      }, error=function(e) NA)
+    }))
+}), .id="doublet.type")
+ag2 <- t(sapply(split(seq_len(nrow(dbls)), dbls$doublet.type), FUN=function(w){
+  c(ratio=weighted.mean(dbls$prop.type1[w], dbls$lsize[w], na.rm=TRUE),
+    expected.ratio=dbls$expectedProp[w[1]])
+}))
+ag2 <- data.frame(doublet.type=row.names(ag2), ag2)
+ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed", col="grey") +
+  geom_point(aes(size=lsize, colour=doublet.type)) + scale_color_discrete(guide=FALSE) +
+  geom_line(data=ag2, aes(expected.ratio, ratio), size=1.5, colour="grey") + 
+  geom_text_repel(data=ag2, aes(expected.ratio, ratio, label=doublet.type), direction="y", nudge_y=c(0.1,-0.1)) +
+  labs(x="Expected proportion of first celltype (based on median celltype library size)",
+       y="Observed proportion of first celltype", size="Library size")
+```
+Large variations in relative contributions both composing cell types are revealed by decomposition of the doublets into non-negative linear combination of average cell type profiles. Relative contributions are weakly associated to the relative sizes of the composing cell types, however this effect is considerably smaller than the variation within type. This suggests either i) large variations in real cell size within a given cell type, ii) large variations in the mRNA sampling efficiency which are independent for the two composing cells.
