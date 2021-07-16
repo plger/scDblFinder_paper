@@ -236,7 +236,7 @@ dblTypesScheme <- function(){
     geom_point(data=d, aes(shape=celltype, colour=genotype), size=4) + 
     labs(x="PC1", y="PC2") + theme_minimal(base_size=10) + 
     geom_text(data=d2, aes(x=xmean, y=ymean, label=type), nudge_y=c(0,0,1),
-              nudge_x=c(1.1,-1.2,0)) + 
+              nudge_x=c(1.1,-1.2,0)) + xlim(range(d$x)+c(-0.2,0.2)) +
     guides(colour=guide_legend(title.position="top"), shape=guide_legend(title.position="top")) +
     theme(axis.ticks=element_blank(), axis.text=element_blank(), legend.position="bottom")
 }

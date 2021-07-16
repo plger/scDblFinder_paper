@@ -1,7 +1,15 @@
 ---
-title: "scDblFinder"
-author: "Pierre-Luc Germain"
-date: "2021/06/24"
+title: "Doublet identification in single-cell sequencing data using scDblFinder"
+author: 
+- name: Pierre-Luc Germain
+  affiliation:
+    - DMLS Lab of Statistical Bioinformatics, UZH
+    - D-HEST Institute for Neuroscience, ETH
+    - Swiss Institute of Bioinformatics
+- name: Mark D. Robinson
+  affiliation: 
+    - DMLS Lab of Statistical Bioinformatics, UZH
+    - Swiss Institute of Bioinformatics
 output:
   bookdown::html_document2:
     code_folding: hide
@@ -9,13 +17,13 @@ output:
 bibliography: "`r rbbt::bbt_write_bib('biblio.json', overwrite = TRUE)`"
 ---
 
+
 ```{r, include=FALSE}
 suppressPackageStartupMessages({
   library(SingleCellExperiment)
   library(ComplexHeatmap)
   library(scDblFinder)
   library(ggplot2)
-  library(rbbt)
   library(cowplot)
   library(MASS)
 })
@@ -87,7 +95,7 @@ row.names(tr) <- tr[,1]; tr <- tr[,-1]
 tr2 <- apply(tr,2,FUN=getranks)
 e$AUPRC.rank <- apply(e[,1:2], 1, FUN=function(x) tr2[as.character(x[2]),as.character(x[1])])
 
-nmeth <- length(unique(res$method))
+nmeth <- length(unique(e$method))
 p1 <- ggplot(e, aes(dataset, method, colour=AUPRC, size=AUPRC.rank^2)) + geom_point() +
   scale_color_viridis_c() + scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
   geom_text(aes(label=round(AUPRC,2)), colour=ifelse(e$AUPRC.rank<1.6,NA,ifelse(e$AUPRC>0.5,"black","white")), size=3) +
@@ -127,7 +135,7 @@ prop.intraind <- propHomotypic(e$ind)
 p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRUE, 
                prop.wrong.neg=prop.intraind, prop.wrong.pos=prop.homotypic,
                showLegend=FALSE) + scale_color_manual(values=c("score"="darkviolet"))
-plot_grid(dblTypesScheme + xlim(range(d$x)+c(-0.2,0.2)), 
+plot_grid(dblTypesScheme(), 
           p2 + theme(legend.position="none"), 
           scale=0.95, labels="AUTO")
 ```
@@ -135,7 +143,7 @@ plot_grid(dblTypesScheme + xlim(range(d$x)+c(-0.2,0.2)),
 Another example, for supplementaries:
 
 ```{r, fig.width=5, fig.height=4.5}
-sce <- readRDS("../other_datasets/batch1.SCE.rds")
+sce <- readRDS("../other_datasets/GSE96583.batch1.SCE.rds")
 sce <- scDblFinder(sce[,sce$batch=="A"], clusters="cluster")
 plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE, 
                prop.wrong.neg=propHomotypic(sce$ind), showLegend=FALSE,
@@ -275,7 +283,7 @@ plotROCs(list( ArchR=cd$DoubletEnrichment,
 
 ## Doublet characterization
 
-Because doublets are generated between clusters, we can keep track of their origins, and use this to infer the clusters composing real doublets. Unfortunately, this doesn't work very well (Figure \@ref(fig:dblTypes)) -- neither on real data nor even on simulated doublets -- and even training a classifier directly on the problem fails. The problem seems to be that a doublet that's 80% A and 20% B can look a lot like one that's 80% A and 20% C...
+Because doublets are generated between clusters, we can keep track of their origins, and use this to infer the clusters composing real doublets. Unfortunately, this doesn't work very well (Figure \@ref(fig:dblTypes)) -- neither on real data nor even on simulated doublets -- and even training a classifier directly on the problem fails. The problem seems to be that a doublet that's 80% A and 20% B can look a lot like one that's 80% A and 20% C. As a result, we can typically call at least one of two originating cell types, but seldom both.
 
 ```{r dblTypes, fig.cap="Confusion matrix of the doublet type (i.e. originating clusters) identification."}
 sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
@@ -415,3 +423,7 @@ All methods failed to appropriately control FDR...
 
 
 # References
+
+**R version**: `r R.version.string`
+**Bioconductor version**: `r BiocManager::version()`
+**Doublet identification packages**: `r paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")`
