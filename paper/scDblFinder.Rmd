@@ -17,6 +17,10 @@ output:
 bibliography: "`r rbbt::bbt_write_bib('biblio.json', overwrite = TRUE)`"
 ---
 
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
 
 ```{r, include=FALSE}
 suppressPackageStartupMessages({
@@ -45,7 +49,7 @@ knitr::include_graphics("strategy2.svg")
 Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method.
 If clusters are not provided, and standard pre-processing is applied to quickly generate them:
 to improve speed, cells are first clustered into a large number of meta-cells using kmeans,
-the meta-cells are then clustered using graph-based clustering, and the clusters are propagated back to the original cells.¨
+the meta-cells are then clustered using graph-based clustering, and the clusters are propagated back to the original cells.
 Artificial doublets are then created by combining cells of different clusters in a proportional fashion.
 Dimensional reduction is then performed on the union of real cells and artificial doublets, and a nearest neighbor network is generated.
 The network is then used to estimate a number of characteristics for each cell, particularly including the proportion of artificial doublets among the nearest neighbors.
@@ -68,10 +72,11 @@ To illustrate this, we used `scDblFinder` without the dimensional reduction and 
 
 ## scDblFinder outperforms alternative methods
 
-`scDblFinder` was already compared to existing alternatives in an independent benchmark (see XXX, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021 ).
+`scDblFinder` was already compared, and shown superior to existing alternatives in an independent benchmark (see XXX, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021 ).
+Here we reproduced this benchmark using the most recent versions of the packages, and including an updated version of `scran`'s original method (computeDoubletDensity, now also available in `scDblFinder`). 
 Figure \@ref(fig:benchmark) compares the performance of `scDblFinder` to alternatives across their real datasets.
-`scDblFinder` has the highest mean areas under the receiver-operating characteristic (ROC) and precision-recall (PR) curves, ranking first in a majority of datasets, and otherwise typically very close to the first.
-In addition, in runs at a fraction of the time required by the next most accurate methods.
+`scDblFinder` has the highest mean areas under the precision-recall (PR) curve, ranking first in a majority of datasets, and otherwise typically very close to the first.
+In addition, in runs at a fraction of the time required by for instance `DoubletFinder`.
 
 ```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve."}
 e <- readRDS("../benchmark/benchmark.results.rds")
@@ -140,9 +145,10 @@ plot_grid(dblTypesScheme(),
           scale=0.95, labels="AUTO")
 ```
 
+<!--
 Another example, for supplementaries:
 
-```{r, fig.width=5, fig.height=4.5}
+```{r, fig.width=5, fig.height=4.5, eval=FALSE}
 sce <- readRDS("../other_datasets/GSE96583.batch1.SCE.rds")
 sce <- scDblFinder(sce[,sce$batch=="A"], clusters="cluster")
 plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE, 
@@ -150,6 +156,7 @@ plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE,
                prop.wrong.pos=propHomotypic(sce$cluster)) + 
   ggtitle("pbmc.1A.dm") + scale_color_manual(values=c("score"="darkviolet"))
 ```
+-->
 
 ## Flexible thresholding for doublet calling
 
@@ -290,11 +297,17 @@ sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
 sce <- scDblFinder(sce, sce$phenoid)
 CD <- colData(sce)
 CDd <- CD[CD$scDblFinder.class=="doublet" & !CD$scDblFinder.originAmbiguous & CD$demuxlet_cls=="DBL",]
-CDd$scDblFinder.mostLikelyOrigin <- factor(gsub("H838","H8383",CDd$scDblFinder.mostLikelyOrigin),
+CDd$scDblFinder.mostLikelyOrigin <- factor(gsub("H838$","H8383",CDd$scDblFinder.mostLikelyOrigin),
                                            levels(CDd$demuxlet.dbl.type))
-Heatmap(unclass(table(call=CDd$scDblFinder.mostLikelyOrigin, truth=CDd$demuxlet.dbl.type)),
-        cluster_columns=FALSE, cluster_rows=FALSE)
+orig.correct <- do.call(rbind, strsplit(as.character(CDd$scDblFinder.mostLikelyOrigin),"+",fixed=TRUE))==do.call(rbind, strsplit(as.character(CDd$demuxlet.dbl.type),"+",fixed=TRUE))
+
+ComplexHeatmap::Heatmap(
+  unclass(table(call=CDd$scDblFinder.mostLikelyOrigin, truth=CDd$demuxlet.dbl.type)),
+  row_title="Predicted type", column_title="True type", name="# doublets",
+  cluster_columns=FALSE, cluster_rows=FALSE, col=viridisLite::cividis(20))
 ```
+
+In `r round(100*sum(apply(orig.correct,1,any))/nrow(orig.correct))`% of cases at least one of the two originating cell type is correctly identified, but both are correct only in `r round(100*sum(rowSums(orig.correct)==2)/nrow(orig.correct))`% of cases.
 
 Assuming we had better ways of doing this, we could then go on to the next step...
 
@@ -426,4 +439,4 @@ All methods failed to appropriately control FDR...
 
 **R version**: `r R.version.string`
 **Bioconductor version**: `r BiocManager::version()`
-**Doublet identification packages**: `r paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")`
+**Doublet identification packages**: `r if(FALSE) paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")`
