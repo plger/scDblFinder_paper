@@ -146,6 +146,7 @@ simDblCounts <- function( ncells=c(1500,200,1000,500,300,800),
 #' column)
 #' @param params Named list of lists, containing alternative parameter values
 #' @param seeds integer vector of random seeds
+#' @param BPPARAM Optional BiocParallel param for multithreading
 #' @param use.precomputed.clusters Logical; whether to use pre-computed
 #' clusters (if )
 #'
@@ -157,15 +158,16 @@ runParams <- function(ll, params=list(
       max_depth=list(5),
       propRandom=list(0)
     ),
-    seeds=c(1234, 42), use.precomputed.clusters=TRUE){
+    seeds=c(1234, 42), BPPARAM=NULL, use.precomputed.clusters=TRUE){
+  library(BiocParallel)
   eg <- expand.grid( c(list(seeds=seeds), params) )
   eg2 <- as.data.frame(lapply(as.data.frame(eg), FUN=function(x){
     if(is.list(x)) x <- sapply(x, FUN=toString)
     x
   }))
   message("Running ", nrow(eg), " combinations on ", length(ll), " datasets.")
-  res <- lapply(seq_len(nrow(eg)), FUN=function(i){
-    print(eg[i,])
+  if(is.null(BPPARAM)) BPPARAM <- SerialParam()
+  res <- bplapply(seq_len(nrow(eg)), FUN=function(i){
     pp <- lapply(eg[i,], FUN=function(x) x[[1]])
     if(is.null(pp$clusters)) pp <- pp[setdiff(names(pp),"clusters")]
     set.seed(pp$seeds)
@@ -225,16 +227,16 @@ dblTypesScheme <- function(){
   wb2 <- which(d$celltype=="B" & d$genotype=="y" & d$y>2)
   wc1 <- which(d$celltype=="C" & d$genotype=="z")
   wc2 <- which(d$celltype=="C" & d$genotype=="x" & d$x>6)
-  
-  d2 <- data.frame( x=d$x[c(wa1,wb1,wc1)], xend=d$x[c(wa2,wb2,wc2)], 
+
+  d2 <- data.frame( x=d$x[c(wa1,wb1,wc1)], xend=d$x[c(wa2,wb2,wc2)],
                     y=d$y[c(wa1,wb1,wc1)], yend=d$y[c(wa2,wb2,wc2)],
                     type=c("intra-genotype\nheterotypic", "inter-genotype\nheterotypic",
                            "inter-genotype\nhomotypic") )
   d2$xmean <- (d2$x+d2$xend)/2
   d2$ymean <- (d2$y+d2$yend)/2
   ggplot(d,aes(x,y)) + geom_segment(data=d2, aes(xend=xend,yend=yend), linetype="dashed") +
-    geom_point(data=d, aes(shape=celltype, colour=genotype), size=4) + 
-    labs(x="PC1", y="PC2") + theme_minimal(base_size=10) + 
+    geom_point(data=d, aes(shape=celltype, colour=genotype), size=4) +
+    labs(x="PC1", y="PC2") + theme_minimal(base_size=10) +
     geom_text(data=d2, aes(x=xmean, y=ymean, label=type), nudge_y=c(0,0,1),
               nudge_x=c(1.1,-1.2,0)) + xlim(range(d$x)+c(-0.2,0.2)) +
     guides(colour=guide_legend(title.position="top"), shape=guide_legend(title.position="top")) +

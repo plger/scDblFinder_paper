@@ -1,0 +1,93 @@
+---
+title: "Impact of variations on the method"
+author: "Pierre-Luc Germain"
+date: "5/17/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scDblFinder)
+  library(PRROC)
+  library(BiocParallel)
+})
+source("../misc.R")
+```
+
+We load the datasets:
+
+```{r}
+lf <- list.files("../benchmark/datasets/", pattern="rds$", full=TRUE)
+names(lf) <- gsub("\\.rds$","", basename(lf))
+ll <- lapply(lf, FUN=function(x){
+  x <- readRDS(x)
+  sce <- SingleCellExperiment(list(counts=x[[1]]))
+  sce$truth <- x[[2]]
+  sce
+})
+```
+
+# Features
+
+```{r, cache=TRUE}
+features <- c("weighted","distanceToNearest","distanceToNearestDoublet",
+              "distanceToNearestReal","difficulty","expected",
+              "observed","lsizes","nfeatures","cxds_score","nearestClass")
+featsMin1 <- lapply(seq_along(features), FUN=function(i) features[-i])
+res <- runParams(ll, list(trainingFeatures=featsMin1), BPPARAM=MulticoreParam(3))
+res$excluded <- sapply(strsplit(res$trainingFeatures,", "), FUN=function(x) setdiff(features,x))
+saveRDS(res, file="optims_features.rds")
+```
+
+# Marker correlation
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(clustCor=list(NULL,10,20,50,Inf)), BPPARAM=MulticoreParam(3))
+saveRDS(res, file="optims_clustCor.rds")
+```
+
+
+# Random vs intra-cluster doublets
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(propRandom=list(0,0.25,1)), BPPARAM=MulticoreParam(3))
+saveRDS(res, file="optims_propRandom.rds")
+```
+
+# Number of iterations
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(iter=as.list(1:4)), BPPARAM=MulticoreParam(4))
+saveRDS(res, file="optims_iter.rds")
+```
+
+# Hyper-parameters
+
+```{r, cache=TRUE}
+pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7) )
+res <- runParams(ll, pars, BPPARAM=MulticoreParam(4))
+saveRDS(res, file="optims_hyperparams.rds")
+```
+
+# Including PCs
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(includePCs=list(c(),1:3,1:5,1:10,1:20)), BPPARAM=MulticoreParam(4))
+saveRDS(res, file="optims_PCs.rds")
+```
+
+# Pre-processing
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(processing=list("default","rawFeatures","normFeatures","rawPCA")), BPPARAM=MulticoreParam(4))
+saveRDS(res, file="optims_preproc.rds")
+```
+
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
