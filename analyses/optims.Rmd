@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library(BiocParallel)
 })
 source("../misc.R")
+cpus <- 1
 ```
 
 We load the datasets:
@@ -28,6 +29,36 @@ ll <- lapply(lf, FUN=function(x){
 })
 ```
 
+# Pre-processing
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(processing=list("default","rawFeatures","normFeatures","rawPCA")), BPPARAM=cpus)
+saveRDS(res, file="optims_preproc.rds")
+```
+
+# Number of genes
+
+```{r}
+res <- runParams(ll, list(nfeatures=list(200,500,1000,2000,5000)), BPPARAM=cpus)
+saveRDS(res, file="optims_preproc.rds")
+```
+
+
+***
+
+For the next steps, we can pre-process only once to speed-up,
+since the variations compared are downstream:
+
+```{r}
+ll <- lapply(ll, FUN=function(sce){
+  sce <- scDblFinder:::.prepSCE(sce, ndims=20)
+  set.seed(42)
+  sce$cluster <- fastcluster(sce)
+  sce
+})
+```
+
+
 # Features
 
 ```{r, cache=TRUE}
@@ -35,7 +66,7 @@ features <- c("weighted","distanceToNearest","distanceToNearestDoublet",
               "distanceToNearestReal","difficulty","expected",
               "observed","lsizes","nfeatures","cxds_score","nearestClass")
 featsMin1 <- lapply(seq_along(features), FUN=function(i) features[-i])
-res <- runParams(ll, list(trainingFeatures=featsMin1), BPPARAM=MulticoreParam(3))
+res <- runParams(ll, list(trainingFeatures=featsMin1), BPPARAM=cpus)
 res$excluded <- sapply(strsplit(res$trainingFeatures,", "), FUN=function(x) setdiff(features,x))
 saveRDS(res, file="optims_features.rds")
 ```
@@ -43,7 +74,7 @@ saveRDS(res, file="optims_features.rds")
 # Marker correlation
 
 ```{r, cache=TRUE}
-res <- runParams(ll, list(clustCor=list(NULL,10,20,50,Inf)), BPPARAM=MulticoreParam(3))
+res <- runParams(ll, list(clustCor=list(NULL,10,20,50,Inf)), BPPARAM=cpus)
 saveRDS(res, file="optims_clustCor.rds")
 ```
 
@@ -51,37 +82,30 @@ saveRDS(res, file="optims_clustCor.rds")
 # Random vs intra-cluster doublets
 
 ```{r, cache=TRUE}
-res <- runParams(ll, list(propRandom=list(0,0.25,1)), BPPARAM=MulticoreParam(3))
+res <- runParams(ll, list(propRandom=list(0,0.25,1)), BPPARAM=cpus)
 saveRDS(res, file="optims_propRandom.rds")
 ```
 
 # Number of iterations
 
 ```{r, cache=TRUE}
-res <- runParams(ll, list(iter=as.list(1:4)), BPPARAM=MulticoreParam(4))
+res <- runParams(ll, list(iter=as.list(1:4)), BPPARAM=cpus)
 saveRDS(res, file="optims_iter.rds")
 ```
 
 # Hyper-parameters
 
 ```{r, cache=TRUE}
-pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7) )
-res <- runParams(ll, pars, BPPARAM=MulticoreParam(4))
+pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7), BPPARAM=cpus)
+res <- runParams(ll, pars, BPPARAM=cpus)
 saveRDS(res, file="optims_hyperparams.rds")
 ```
 
 # Including PCs
 
 ```{r, cache=TRUE}
-res <- runParams(ll, list(includePCs=list(c(),1:3,1:5,1:10,1:20)), BPPARAM=MulticoreParam(4))
+res <- runParams(ll, list(includePCs=list(c(),1:3,1:5,1:10,1:20)), BPPARAM=cpus)
 saveRDS(res, file="optims_PCs.rds")
-```
-
-# Pre-processing
-
-```{r, cache=TRUE}
-res <- runParams(ll, list(processing=list("default","rawFeatures","normFeatures","rawPCA")), BPPARAM=MulticoreParam(4))
-saveRDS(res, file="optims_preproc.rds")
 ```
 
 
