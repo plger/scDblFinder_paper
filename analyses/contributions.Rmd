@@ -33,7 +33,7 @@ ag$sum <- sapply(strsplit(ag$class,"+",fixed=TRUE), FUN=function(x) sum(ag[x,"x"
 ggplot(ag, aes(sum, x, colour=isDoublet, label=class)) + 
   geom_abline(linetype="dashed", colour="grey") + geom_point(size=2) +
   geom_segment(aes(x=sum,xend=sum,y=x-mad,yend=x+mad)) + 
-  geom_text_repel(colour="black") + 
+  geom_text_repel(colour="black", min.segment.length=0) + 
   labs(x="Sum of median library sizes", y="Observed median library size")
 ```
 
@@ -68,4 +68,4 @@ ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed", col
   labs(x="Expected proportion of first celltype (based on median celltype library size)",
        y="Observed proportion of first celltype", size="Library size")
 ```
-Large variations in relative contributions both composing cell types are revealed by decomposition of the doublets into non-negative linear combination of average cell type profiles. Relative contributions are weakly associated to the relative sizes of the composing cell types, however this effect is considerably smaller than the variation within type. This suggests either i) large variations in real cell size within a given cell type, ii) large variations in the mRNA sampling efficiency which are independent for the two composing cells.
+Large variations in relative contributions of both composing cell types are revealed by decomposition of the doublets into non-negative linear combination of average cell type profiles. Relative contributions are weakly associated to the relative sizes of the composing cell types, however this effect is considerably smaller than the variation within type. This suggests either i) large variations in real cell size within a given cell type, ii) large variations in the mRNA sampling efficiency which are independent for the two composing cells.
