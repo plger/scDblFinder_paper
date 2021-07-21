@@ -29,13 +29,6 @@ ll <- lapply(lf, FUN=function(x){
 })
 ```
 
-# Pre-processing
-
-```{r, cache=TRUE}
-res <- runParams(ll, list(processing=list("default","rawFeatures","normFeatures","rawPCA")), BPPARAM=cpus)
-saveRDS(res, file="optims_preproc.rds")
-```
-
 # Number of genes
 
 ```{r}
@@ -58,6 +51,12 @@ ll <- lapply(ll, FUN=function(sce){
 })
 ```
 
+# Pre-processing
+
+```{r, cache=TRUE, eval=FALSE}
+res <- runParams(ll, list(processing=list("default","rawFeatures","normFeatures","rawPCA")), BPPARAM=cpus)
+saveRDS(res, file="optims_preproc.rds")
+```
 
 # Features
 
