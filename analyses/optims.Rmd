@@ -31,7 +31,7 @@ ll <- lapply(lf, FUN=function(x){
 
 # Number of genes
 
-```{r}
+```{r, cache=TRUE}
 res <- runParams(ll, list(nfeatures=list(200,500,1000,2000,5000)), BPPARAM=cpus)
 saveRDS(res, file="optims_nfeats.rds")
 ```
@@ -95,7 +95,7 @@ saveRDS(res, file="optims_iter.rds")
 # Hyper-parameters
 
 ```{r, cache=TRUE}
-pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7), BPPARAM=cpus)
+pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7))
 res <- runParams(ll, pars, BPPARAM=cpus)
 saveRDS(res, file="optims_hyperparams.rds")
 ```
