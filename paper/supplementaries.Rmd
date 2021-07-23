@@ -1,0 +1,171 @@
+---
+title: "scanMiR: a biochemically-based toolkit for versatile and efficient microRNA target prediction"
+subtitle: "Supplementary Figures"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: Pierre-Luc Germain
+output:
+  pdf_document:
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo=FALSE)
+FIG_NB <- 0
+FIG_STRING <- "Supplementary Figure S"
+getFigNb <- function(increment=FALSE){
+  if(increment) FIG_NB <<- FIG_NB + 1
+  paste0(FIG_STRING,FIG_NB)
+}
+```
+
+```{r, include=FALSE}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(ggrepel)
+  library(ComplexHeatmap)
+  library(patchwork)
+})
+theme_set(theme_minimal())
+source("../misc.R")
+
+vp <- function(e, aes, ..., hline=TRUE){
+  p <- ggplot(e, aes)
+  if(hline) p <- p + geom_hline(yintercept=0, linetype="dashed")
+  p + geom_violin(...) + 
+    stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+}
+```
+
+# `r getFigNb(TRUE)`
+
+```{r}
+res <- readRDS("../analyses/optims_propRandom.rds")
+vp(res, aes(propRandom, AUPRC.diff), fill="lightgrey") +
+  labs(x="Proportion of doublets that are fully random", y="Difference in AUPRC to the dataset's median")
+```
+
+### `r getFigNb()`
+
+**Efficiency of inter-cluster vs random doublet generation.** Dataset-relative difference in AUPRC (across the 16 benchmark datasets) in running scDblFinder using inter-cluster or random artificial doublets, or a mixture thereof.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.height=5, fig.width=8.5}
+e <- readRDS("../analyses/optims_features.rds")
+e2 <- reshape2:::melt(e[,c("dataset","AUPRC.diff","AUROC.diff","excluded")],
+                      id.vars=c("dataset","excluded"))
+removed <- c("nearestClass","distanceToNearest","distanceToNearestDoublet","observed","expected")
+e2$removed <- e2$excluded %in% removed
+e2$variable <- gsub("\\.diff","",e2$variable)
+ggplot(e2, aes(excluded, value)) + geom_hline(yintercept=0, linetype="dashed") + 
+  geom_violin(aes(fill=removed)) + stat_summary(fun.data = "mean_cl_boot", geom = "pointrange") + 
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="red")) +
+  coord_flip() + facet_wrap(~variable) +
+  xlab("Feature excluded") + ylab("Difference in metric to the median value")
+```
+
+### `r getFigNb()`
+
+**Effect of removing a feature on the dataset-relative accuracy of doublet prediction.** scDblFinder was run across the 16 benchmark datasets removing a given feature, and comparing to the median accuracy. Features in red were then removed from the default settings.
+
+
+\newpage
+
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.width=8, fig.height=6}
+res <- readRDS(file="../analyses/optims_nfeats.rds")
+res1 <- res[res$nfeatures==1000,]
+res1$processing <- "scDblFinder"
+res2 <- readRDS(file="../analyses/optims_direct.rds")
+vars <- c("dataset","processing","AUPRC","AUROC","elapsed")
+res <- rbind(res1[,vars], res2[,vars])
+rs <- rowsum(res[,c("AUPRC","AUROC")],res$dataset)/(nrow(res)/length(unique(res$dataset)))
+tmp <- res[,c("AUPRC","AUROC")]-rs[as.character(res$dataset),]
+colnames(tmp) <- paste0(colnames(tmp),".diff")
+res <- cbind(res, tmp)
+plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() +
+  vp(res, aes(processing, AUROC.diff), fill="lightgrey") + coord_flip(),
+  vp(res, aes(processing, elapsed), fill="lightgrey"), labels="AUTO", nrow=2,
+  rel_heights=c(4,2))
+```
+
+### `r getFigNb()`
+
+**Direct classification vs classifying on the kNN features.**
+The standard `scDblFinder` method is compared to training a classifier directly on the features, either using the PCA ('default'), the normalized ('normFeatures') or the raw counts ('rawFeatures').
+In all cases, the doublet generation, number of features and iterative procedure is the same.
+`scDblFinder` (i.e. working on the kNN) has a better AUPRC (A, left) at a considerably greater speed than gene-based classifiers (B). Direct classification based on the raw features however had a slightly better AUROC.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.width=8.5, fig.height=7}
+res <- readRDS("../analyses/optims_hyperparams.rds")
+res$nrounds <- factor(res$nrounds)
+res$nrounds <- factor(res$nrounds, c("5","10","20","","0.25","1"))
+levels(res$nrounds) <- c("5 rnds","10 rnds","20 rnds","top","top-0.25*SD","top-1SD")
+p1 <- vp(res, aes(max_depth, AUPRC.diff), fill="lightgrey")
+p2 <- vp(res[res$max_depth==4,], aes(nrounds, AUPRC.diff), fill="lightgrey")
+plot_grid(p1,p2,labels="AUTO",nrow=2)
+```
+
+
+### `r getFigNb()`
+
+**Hyper-parameter optimization:** max tree depth (A) and number of boosting rounds (B).
+'Top' indicates the optimal number of rounds according to cross-validation logloss in the real vs artificial classification.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r}
+res <- readRDS("../analyses/optims_iter.rds")
+vp(res, aes(iter, AUPRC.diff), fill="lightgrey")
+```
+
+### `r getFigNb()`
+
+**Number of learning iteration.**
+At each round, the real cells identified as doublets are removed from the training data for the next round.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, include=FALSE}
+res <- readRDS("../analyses/optims_nfeats.rds")
+res$nfeatures <- factor(res$nfeatures, sort(as.integer(unique(res$nfeatures))))
+res$selected <- res$nfeatures=="1000"
+p1 <- vp(res, aes(nfeatures, AUPRC.diff), aes(fill=selected)) + scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  labs(x="Number of features used", y="Difference in AUPRC") +
+  vp(res, aes(nfeatures, elapsed), fill="lightgray", hline=FALSE) +
+  labs(x="Number of features used", y="Running time (s)")
+
+res <- readRDS("../analyses/optims_clustCor.rds")
+p2 <- vp(res, aes(clustCor, AUPRC.diff), fill="lightgray") + 
+  labs(x="Number of markers used for correlation", y="Difference in AUPRC") # +
+  # vp(res, aes(clustCor, elapsed), fill="lightgray", hline=FALSE) +
+  # labs(x="Number of markers used for correlation", y="Difference in AUPRC")
+
+res <- readRDS("../analyses/optims_PCs.rds")
+res$nPCs <- sapply(strsplit(res$includePCs,", "), FUN=function(x) max(as.integer(x)))
+p3 <- vp(res, aes(factor(nPCs), AUPRC.diff),fill="lightgray")
+```
+
+
+```{r, fig.width=8.5, fig.height=8}
+plot_grid(p1,plot_grid(p2,p3,labels=c("B","C"),nrow=1), labels=c("A",""),nrow=2)
+```
+
+### `r getFigNb()`
+
+**Effect of number of features, number of components, and marker correlation.**
+`

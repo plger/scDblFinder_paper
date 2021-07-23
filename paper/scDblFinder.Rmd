@@ -165,7 +165,10 @@ to improve speed, cells are first clustered into a large number of meta-cells us
 the meta-cells are then clustered using graph-based clustering, and the clusters are propagated back to the original cells. 
 Artificial doublets are then created by combining cells of different clusters in a proportional fashion. 
 In explicitly concentrating on inter-cluster doublets, we do not attempt to identify homotypic doublets, which are anyway virtually unidentifiable and relatively innocuous.
-In doing so, we reduce the necessary number of artificial doublets (since no artificial doublet is 'lost' modeling homotypic doublets), and prevent the classifier from being train to recognize cells that and undistinguishable from singlets.
+In doing so, we reduce the necessary number of artificial doublets (since no artificial doublet is 'lost' modeling homotypic doublets), and prevent the classifier from being trained to recognize cells that are undistinguishable from singlets (and would therefore call singlets as doublets).
+An alternative strategy, also available through `scDblFinder`, is to generate fully random artificial doublets, and use the iterative procedure (see below) to exclude unidentifiable artificial doublets from the training.
+In practice, both approaches have comparable performances (Supplementary Figure 1), and they can also be combined.
+
 Standard dimensional reduction is then performed on the union of real cells and artificial doublets, and a nearest neighbor network is generated.
 The network is then used to estimate a number of characteristics for each cell, particularly including the proportion of artificial doublets among the nearest neighbors.
 Rather than selecting a specific neighborhood size, the ratio is calculated at different values of *k*, creating multiple predictors which will be used by the classifier.
@@ -179,17 +182,13 @@ These can mislead the classifier.
 For this reason, the classifier and thresholding are performed in an iterative fashion:
 at each round, the cells identified as doublets are removed from the training data for the next round.
 
-We optimized a number of parameters in the procedure, notably regarding the generation of artificial doublets, learning hyper-parameters, and features to include, so as to provide robust default parameters.
-
-
 Using the benchmark datasets from @xiBenchmarkingComputationalDoubletDetection2021, we next optimized a number of parameters in the procedure, notably regarding features to include and learning hyper-parameters, so as to provide robust default parameters.
-Some features, such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet, had a negative impact on performance (Supplementary Figure 2A), presumably because it led to over-fitting.
+Some features, such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet, had a negative impact on performance (Supplementary Figure 2), presumably because it led to over-fitting.
 Indeed, because artificial doublet creation can only approximate real doublets, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing _artificial_ doublets from real cells, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from singlets).
 To illustrate this, we used `scDblFinder` without the dimensional reduction and kNN steps, which arguably involve a loss of information, and trained the classifier directly on the expression of the selected genes.
-This resulted in a loss of accuracy in real datasets (Supplementary Figure 2B).
+This resulted in a reduction in AUPRC in real datasets (Supplementary Figure 3).
 
-We finally optimized training hyper-parameters (Supplementary Figure 3A) as well as the number of iterations (Supplementary Figure 3B), finding that one or two additional training iterations were sufficient.
-
+We finally optimized training hyper-parameters (Supplementary Figure 4) as well as the number of iterations (Supplementary Figure 5), finding that a relatively low number of iterations (2-3) was sufficient.
 
 ## scDblFinder outperforms alternative methods
 
@@ -250,7 +249,7 @@ Based on the frequency of the different individuals and cell types in a dataset,
 This, in turns, allows us to adjust the measured true positive rate (TPR) and false discovery rate and get a better picture of our ability to detect heterotypic doublets.
 Figure \@ref(fig:adjustedPR)B shows such an analysis for a complex dataset from @kangMultiplexedDropletSinglecell2018 .
 The inflection point of the PR curve roughly coincides with the expected proportion of heterotypic doublets among those flagged as true doublets.
-Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and we estimate that ~90\% of heterotypic doublets can be identified with a real FDR of ~0.2 (a similar analysis for a different sample is show in Supplementary Figure 4).
+Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and we estimate that ~90\% of heterotypic doublets can be identified with a real FDR of ~0.2 (a similar analysis for a different sample is show in Supplementary Figure XXX).
 
 ```{r adjustedPR, fig.width=9, fig.height=4, fig.cap="A: Scheme (toy data) representing the different types of doublets. B: Adjusted PR curve. The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.", warning=FALSE}
 e <- readRDS("data/GSM2560248_noAmbiguous.processed.CD.rds")
@@ -363,7 +362,7 @@ plot_grid(
 
 Multiple samples are often profiled and analyzed together, with the very common risk of batch effects (either technical or biological) across samples [@lutgeCellMixSQuantifyingVisualizing2021].
 Therefore, while the cells from all samples might in principle provide more information for doublet detection than a single sample can afford on its own, this must be weighted against the risk of bias due to technical differences.
-To investigate this, we implemented different multi-sample approaches and tested them on two real multi-samples datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Figure \@ref(fig:multisample)).
+To investigate this, we implemented different multi-sample approaches and tested them on two real multi-sample datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Figure \@ref(fig:multisample)).
 
 ```{r multisample, fig.width=8, fig.height=4, fig.cap="Comparison of four different multi-sample modes across four (multi-sample) datasets (the datasets with the 's' suffix are versions downsampled to 30%)."}
 res2 <- readRDS("../analyses/multisample_results.rds")
@@ -380,13 +379,6 @@ ggplot(res2, aes(dataset, value, fill=method)) +
 The different multi-sample strategies had only a minor impact on the accuracy of the identification.
 Based on these results, the best overall strategy appears to be to process all samples as if they were one, however in our experience this can lead to biases against some samples when there are very large variations (e.g. in number of cells or coverage) across samples (not shown). This approach also greatly increases running time.
 In contrast, running the samples fully separately is computationally highly efficient, and is often equally accurate.
-
-## Usage on datasets without cluster structure
-
-`scDblFinder`'s cluster-based approach can potentially become problematic when the data is not structured into clusters, but for instance into a developmental trajectory.
-In practice, however, the clustering strategy proved effective also in these scenario, and better than purely random doublets (Suppl. Figure X).
-We however recommend a sufficiently high clustering resolution in such contexts, which for instance can be achieved by setting the `clusters` argument to the desired number of clusters.
-
 
 ## scATACseq: aggregating rather than selecting features
 
@@ -429,10 +421,13 @@ h1 <- ComplexHeatmap::Heatmap(
   cluster_columns=FALSE, cluster_rows=FALSE, col=viridisLite::cividis(20),
   row_names_gp=gpar(fontsize=11), column_names_gp=gpar(fontsize=11))
 
-sce <- scDblFinder(mockDoubletSCE(c(300,500,500,800), ngenes=1000))
+sce <- mockDoubletSCE(c(300,500,500,800), ngenes=1000)
+sce <- scDblFinder(sce, clusters=sce$cluster)
 w <- which(sce$type=="doublet" & sce$scDblFinder.class=="doublet")
-h2 <- Heatmap(
-  unclass(table(sce$scDblFinder.mostLikelyOrigin[w], gsub("cluster","",sce$origin[w]))), 
+m <- unclass(table(droplevels(sce$scDblFinder.mostLikelyOrigin[w]), sce$origin[w]))
+row.names(m) <- gsub("cluster","",row.names(m))
+colnames(m) <- gsub("cluster","",colnames(m))
+h2 <- Heatmap(m,
   row_title="Predicted type", column_title="True type", name="# doublets",
   cluster_columns=FALSE, cluster_rows=FALSE, col=viridisLite::cividis(20))
 

@@ -158,7 +158,8 @@ runParams <- function(ll, params=list(
       max_depth=list(5),
       propRandom=list(0)
     ),
-    seeds=c(1234, 42), BPPARAM=NULL, use.precomputed.clusters=TRUE){
+    seeds=c(1234, 42), BPPARAM=NULL, use.precomputed.clusters=TRUE,
+    FN=scDblFinder){
   library(BiocParallel)
   eg <- expand.grid( c(list(seeds=seeds), params) )
   eg2 <- as.data.frame(lapply(as.data.frame(eg), FUN=function(x){
@@ -168,7 +169,8 @@ runParams <- function(ll, params=list(
   message("Running ", nrow(eg), " combinations on ", length(ll), " datasets.")
   if(is.null(BPPARAM)) BPPARAM <- SerialParam()
   if(is.numeric(BPPARAM)) BPPARAM <- MulticoreParam(min(nrow(eg),BPPARAM))
-  res <- bplapply(seq_len(nrow(eg)), FUN=function(i){
+  #res <- bplapply(seq_len(nrow(eg)), BPPARAM=BPPARAM, FUN=function(i){
+  res <- lapply(seq_len(nrow(eg)), FUN=function(i){
     pp <- lapply(eg[i,], FUN=function(x) x[[1]])
     if(is.null(pp$clusters)) pp <- pp[setdiff(names(pp),"clusters")]
     set.seed(pp$seeds)
@@ -184,16 +186,22 @@ runParams <- function(ll, params=list(
       pp$propKnown <- NULL
       isTraj <- !is.null(x$is.traj) && x$is.traj
       if( !is.null(pp$clusters) || !use.precomputed.clusters || is.null(ll[[1]]$cluster)){
-        wrapper <- function(...) scDblFinder(x, ...)
+        wrapper <- function(...) FN(x, ...)
       }else{
-        wrapper <- function(...) scDblFinder(x, clusters=x$cluster, ...)
+        wrapper <- function(...) FN(x, clusters=x$cluster, ...)
       }
       st <- system.time(x <- do.call(wrapper, pp))
       if("known" %in% colnames(colData(x))) x <- x[,-which(x$known)]
-      s <- split(x$scDblFinder.score, x$truth)
+      if("scDblFinder.score" %in% colnames(colData(x))){
+        s <- split(x$scDblFinder.score, x$truth)
+        x$call <- x$scDblFinder.class=="doublet"
+      }else{
+        s <- split(x$directDoubletScore, x$truth)
+        x$call <- x$directDoubletScore>0.5
+      }
+
       pp <- PRROC::pr.curve(s[[1]], s[[2]])
       x$truth <- x$truth=="doublet"
-      x$call <- x$scDblFinder.class=="doublet"
       c(AUPRC=mean(as.numeric(pp[2:3])),
         AUROC=PRROC::roc.curve(s[[1]], s[[2]])[[2]],
         accuracy=sum(x$truth==x$call)/ncol(x),
