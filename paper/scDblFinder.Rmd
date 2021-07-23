@@ -65,7 +65,7 @@ While evidently useful, these identify only a fraction of the doublets, and fail
 
 A number of computational approaches have therefore been developed to identify doublets on the basis of their transcriptional profile [@mcginnisDoubletFinderDoubletDetection2019; @depasqualeDoubletDeconDeconvoluting2019; @wolockScrubletComputationalIdentification2019; @baisScdsComputationalAnnotation2020; @bernsteinSoloDoublet2020].
 Most of these approaches rely on the generation of artificial doublets by summing or averaging real cells, and score the similarity between them and the real cells.
-For example, `DoubletFinder` generates a _k_-nearest neighbor graph on the union of real cells and artificial doublets, and estimates the density of artificial doublets in the neighborhood of each cell [@mcginnisDoubletFinderDoubletDetection2019].
+For example, `DoubletFinder` generates a _k_-nearest neighbor (kNN) graph on the union of real cells and artificial doublets, and estimates the density of artificial doublets in the neighborhood of each cell [@mcginnisDoubletFinderDoubletDetection2019].
 In a similar fashion, one of the methods proposed by @baisScdsComputationalAnnotation2020, `bcds`, generates artificial doublets and trains a classifier to distinguish them from real cells.
 Real cells that are then classified with artificial doublets are then called as doublets.
 Finally, another strategy proposed by @baisScdsComputationalAnnotation2020 is a coexpression score, `cxds`, which flags cells that co-express a number of genes which otherwise tend to be mutually exclusive across cells.
@@ -76,10 +76,6 @@ However, another important observation from the benchmark was that no single met
 
 Here, we present the `scDblFinder` package, building on the extensive single-cell `Bioconductor` methods and infrastructures [@amezquitaOrchestratingSinglecellAnalysis2019] and implementing a number of doublet detection approaches.
 In particular, the `scDblFinder` method integrates insights from previous approaches and novel improvements to generate fast, flexible and robust doublet prediction. `scDblFinder` was independently tested by Xi and Li in the protocol extension to their initial benchmark and was found to have the best overall performance [@xiProtocolExecutingBenchmarking2021].
-
-# Methods
-
-## scDblFinder method
 
 # Results
 
@@ -137,7 +133,7 @@ p2 <- ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed
   geom_line(data=ag2, aes(expected.ratio, ratio), size=1.5, colour="grey") + 
   geom_text_repel(data=ag2, aes(expected.ratio, ratio, label=doublet.type), direction="y", nudge_y=c(0.1,-0.1)) +
   labs(x="Expected proportion of first celltype (based on median celltype library size)",
-       y="Observed proportion of first celltype", size="Library size")
+       y="Estimated proportion of first celltype", size="Library size")
 
 
 plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
@@ -186,7 +182,7 @@ Using the benchmark datasets from @xiBenchmarkingComputationalDoubletDetection20
 Some features, such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet, had a negative impact on performance (Supplementary Figure 2), presumably because it led to over-fitting.
 Indeed, because artificial doublet creation can only approximate real doublets, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing _artificial_ doublets from real cells, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from singlets).
 To illustrate this, we used `scDblFinder` without the dimensional reduction and kNN steps, which arguably involve a loss of information, and trained the classifier directly on the expression of the selected genes.
-This resulted in a reduction in AUPRC in real datasets (Supplementary Figure 3).
+This resulted in a reduction in AUPRC in real datasets (Supplementary Figure 3 and Figure \@ref(fig:benchmark1)).
 
 We finally optimized training hyper-parameters (Supplementary Figure 4) as well as the number of iterations (Supplementary Figure 5), finding that a relatively low number of iterations (2-3) was sufficient.
 
@@ -201,10 +197,24 @@ In addition, in runs at a fraction of the time for instance required by the next
 ```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve."}
 e <- readRDS("../benchmark/benchmark.results.rds")
 
+res <- readRDS("../analyses/optims_propRandom.rds")
+res <- res[res$propRandom==1,]
+res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
+res$method <- "scDblFinder.rnd"
+e <- rbind(e, res[,colnames(e)])
+
+res <- readRDS("../analyses/optims_direct.rds")
+res <- res[res$processing=="direct rawFeatures",]
+res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
+res$method <- "directDblClassification"
+e <- rbind(e, res[,colnames(e)])
+
 datmax <- sort(apply(reshape2::dcast(e, method~dataset, value.var="AUPRC")[,-1],
                      2,na.rm=TRUE,FUN=max))
+metmax <- sort(apply(reshape2::dcast(e, dataset~method, value.var="AUPRC")[,-1],
+                     2,na.rm=TRUE,FUN=median))
 e$dataset <- factor(e$dataset, levels=names(datmax))
-e$method <- factor(e$method, levels=names(sort(rowsum(e$AUPRC, e$method, na.rm=TRUE)[,1])))
+e$method <- factor(e$method, levels=names(metmax))
 levels(e$method) <- gsub("bcds","scds::bcds",levels(e$method))
 levels(e$method) <- gsub("cxds","scds::cxds",levels(e$method))
 levels(e$method) <- gsub("hybrid","scds::hybrid",levels(e$method))
@@ -215,26 +225,37 @@ getranks <- function(x){
   y
 }
 
+e$point.colour <- viridisLite::cividis(100)[round(100*e$AUPRC)]
+e$border.colour <- ifelse(e$AUPRC==datmax[e$dataset], "black", NA)
+e$rounded <- round(e$AUPRC,2)
+e$text.colour <- ifelse(e$rounded>=0.5,"black","white")
+e$text.colour[e$AUPRC.rank==1] <- NA
+
 tr <- reshape2::dcast(e, method~dataset, value.var="AUPRC")
 row.names(tr) <- tr[,1]; tr <- tr[,-1]
 tr2 <- apply(tr,2,FUN=getranks)
 e$AUPRC.rank <- apply(e[,1:2], 1, FUN=function(x) tr2[as.character(x[2]),as.character(x[1])])
 
 nmeth <- length(unique(e$method))
-p1 <- ggplot(e, aes(dataset, method, colour=AUPRC, size=AUPRC.rank^2)) + geom_point() +
-  scale_color_viridis_c() + scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
-  geom_text(aes(label=round(AUPRC,2)), colour=ifelse(e$AUPRC.rank<1.6,NA,ifelse(e$AUPRC>0.5,"black","white")), size=3) +
-  labs(size="AUPRC rank") +
+scdbl.methods <- c("scDblFinder","scDblFinder.rnd","directDblClassification","computeDoubletDensity")
+p1 <- ggplot(e, aes(dataset, method)) + geom_point(aes(colour=point.colour, size=AUPRC.rank^2)) +
+  scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
+  geom_text(aes(label=rounded, colour=text.colour), size=3) + geom_point(size=11, shape=21, aes(colour=border.colour)) +
+  scale_color_identity() + labs(size="AUPRC rank") +
   theme(axis.text.x=element_text(angle=45, hjust=1),
-        axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", colour=ifelse(levels(e$method)=="scDblFinder","black","grey30")), 
+        axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", 
+                                 colour=ifelse(levels(e$method) %in% scdbl.methods,"black","grey30")), 
         axis.title.y=element_blank(), panel.grid=element_blank())
 
-
-p2 <- ggplot(e, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") + 
-  coord_flip() + scale_y_reverse() + ylab("Mean running\ntime (s)") +
+ag <- aggregate(e[,"elapsed"], by=e[,"method",drop=FALSE], FUN=mean)
+p2 <- ggplot(ag, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") + 
+  #scale_y_continuous(trans = ggforce::trans_reverser('sqrt'), breaks=c(10,60,300)) + 
+  geom_text(aes(y=200,label=paste0(round(elapsed),"s"),colour=elapsed>200), hjust=1) + 
+  scale_colour_manual(values=c("TRUE"="white", "FALSE"="black"), guide=FALSE) +
+  scale_y_reverse() + coord_flip() + ylab("Mean running\ntime (s)") +
   theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
         axis.text.x=element_text(angle=90), panel.grid.major.y = element_blank(),
-        panel.grid.minor.x = element_blank())
+        panel.grid.minor.x = element_blank(), panel.grid.major.x=element_line(colour="lightgrey"))
 plot_grid(p2,p1,align="h", rel_widths=c(1,7))
 ```
 
@@ -265,18 +286,6 @@ plot_grid(dblTypesScheme(),
           scale=0.95, labels="AUTO")
 ```
 
-<!--
-Another example, for supplementaries:
-
-```{r, fig.width=5, fig.height=4.5, eval=FALSE}
-sce <- readRDS("../other_datasets/GSE96583.batch1.SCE.rds")
-sce <- scDblFinder(sce[,sce$batch=="A"], clusters="cluster")
-plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE, 
-               prop.wrong.neg=propHomotypic(sce$ind), showLegend=FALSE,
-               prop.wrong.pos=propHomotypic(sce$cluster)) + 
-  ggtitle("pbmc.1A.dm") + scale_color_manual(values=c("score"="darkviolet"))
-```
--->
 
 ## Flexible thresholding for doublet calling
 
