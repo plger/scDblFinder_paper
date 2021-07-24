@@ -400,7 +400,7 @@ plotROCs(list( ArchR=cd$DoubletEnrichment,
          truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
 ```
 
-## Doublet characterization
+## Doublet origins and enrichment analysis
 
 Because artificial doublets are generated between clusters, we can keep track of the clusters composing them, and use this to infer the clusters composing real doublets.
 Unfortunately, prediction based on nearest artificial doublets proved inaccurate, both in real and simulated data (Figure \@ref(fig:dblTypes)).
