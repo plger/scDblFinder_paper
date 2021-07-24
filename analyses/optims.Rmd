@@ -36,7 +36,6 @@ res <- runParams(ll, list(nfeatures=list(200,500,1000,2000,5000)), BPPARAM=cpus)
 saveRDS(res, file="optims_nfeats.rds")
 ```
 
-
 ***
 
 For the next steps, we can pre-process only once to speed-up,
@@ -50,6 +49,19 @@ ll <- lapply(ll, FUN=function(sce){
   sce
 })
 ```
+
+
+# Direct classification
+
+```{r}
+res2 <- runParams(ll, FN=directDblClassification, 
+                  params=list(processing=list("default","rawFeatures","normFeatures")))
+res2$processing <- paste("direct", res2$processing)
+saveRDS(res2, file="optims_direct.rds")
+```
+
+
+
 
 # Pre-processing
 
