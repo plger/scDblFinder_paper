@@ -308,7 +308,7 @@ In general, `scDblFinder` thresholds are closer to the inflection point.
 ds <- readRDS("data/benchmark_datasets_called.CD2.rds")
 ds <- lapply(ds, FUN=function(x){
   ndb <- nrow(x)*((nrow(x)*0.01)/1000)
-  ndb <- round(ndb * (1-propHomotypic(x$cluster)))
+  ndb <- round(ndb * (1-propHomotypic(x$scDblFinder.cluster)))
   th <- sort(x$scDblFinder.score, decreasing=TRUE)[ndb]
   x$called.dbrOnly <- factor(1+(x$scDblFinder.score>=th),1:2,c("singlet","doublet"))
   x
@@ -336,7 +336,7 @@ plotROCscores <- function(rocs, legend=FALSE, addRandom=TRUE){
     geom_point(data=rot, size=1, colour="black") + geom_point(data=rot, shape=9, size=5) +
     scale_colour_viridis_c(direction=-1) + 
     guides(colour=guide_colourbar(title.position="top", barwidth=8, titlle.hjust=0.5)) + 
-    labs(colour="scDblFinder\nscore")
+    labs(colour="scDblFinder score")
   if(legend){
     p <- p + theme(legend.position="bottom")
   }else{
