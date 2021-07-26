@@ -21,6 +21,7 @@ for(f in names(datasets)){
   x <- datasets[[f]]
   set.seed(1234)
   res[[f]] <- colData(scDblFinder(x[[1]], clusters=TRUE))
+  res[[f]]$truth <- x[[2]]
 }
 saveRDS(res, file="../paper/data/benchmark_datasets_called.CD2.rds")
 ```
