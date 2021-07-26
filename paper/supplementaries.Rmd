@@ -40,6 +40,25 @@ vp <- function(e, aes, ..., hline=TRUE){
 }
 ```
 
+
+# `r getFigNb(TRUE)`
+
+```{r}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+d <- scDblFinder(sce, sce$phenoid, returnType="table", 
+                 artificialDoublets=1, score="weighted") # just for speedup
+th <- doubletThresholding(d)
+plotThresholds(d, dbr=dbr) + coord_cartesian(ylim=c(0,0.5))
+```
+
+### `r getFigNb()`
+
+**Example thresholding.** Plotted are the false negative rate (FNR; the rate of misclassified artificial doublets), the false positive rate (FPR; the proportion of real cells classified as doublets, excluding those called in previous iterations), the squared proportion deviation from the expected doublet rate (denoted 'dev'), and the integrated cost function to be minimized (mean of the previous). The dashed lined indicates the threshold called.
+
+
+\newpage
+
+
 # `r getFigNb(TRUE)`
 
 ```{r, fig.height=5, fig.width=8.5}

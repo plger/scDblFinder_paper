@@ -227,7 +227,7 @@ getranks <- function(x){
   y
 }
 
-e$point.colour <- viridisLite::cividis(100)[round(100*e$AUPRC)]
+e$point.colour <- viridisLite::viridis(100)[round(100*e$AUPRC)]
 e$border.colour <- ifelse(e$AUPRC==datmax[e$dataset], "black", NA)
 e$rounded <- round(e$AUPRC,2)
 e$text.colour <- ifelse(e$rounded>=0.5,"black","white")
