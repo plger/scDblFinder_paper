@@ -595,13 +595,13 @@
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
      inkscape:window-width="1920"
-     inkscape:window-height="1011"
+     inkscape:window-height="1131"
      id="namedview14549"
      showgrid="false"
-     inkscape:zoom="0.30121528"
-     inkscape:cx="-575.19961"
-     inkscape:cy="831.65457"
-     inkscape:window-x="0"
+     inkscape:zoom="0.60243056"
+     inkscape:cx="471.8301"
+     inkscape:cy="256.23052"
+     inkscape:window-x="1920"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg14547"
@@ -36979,18 +36979,18 @@
      xml:space="preserve"
      style="font-style:normal;font-weight:normal;font-size:25px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.75"
      x="333.90906"
-     y="25.273703"
+     y="29.773703"
      id="text29909-3"><tspan
        sodipodi:role="line"
-       id="tspan29907-6"
        x="333.90906"
-       y="25.273703"
-       style="stroke-width:0.75">Inter-cluster</tspan><tspan
+       y="29.773703"
+       style="stroke-width:0.75"
+       id="tspan8295">Artificial doublets</tspan><tspan
        sodipodi:role="line"
        x="333.90906"
-       y="50.273705"
+       y="54.773705"
        style="stroke-width:0.75"
-       id="tspan29929">artificial doublets</tspan></text>
+       id="tspan8299">generation</tspan></text>
   <text
      xml:space="preserve"
      style="font-style:normal;font-weight:normal;font-size:25px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.75"
@@ -37043,7 +37043,7 @@
        x="574.88171"
        y="547.70935"
        style="stroke-width:0.75"
-       id="tspan32388">- identifiability</tspan><tspan
+       id="tspan32388">- principal components</tspan><tspan
        sodipodi:role="line"
        x="574.88171"
        y="572.70935"
@@ -37197,22 +37197,26 @@
      id="path390"
      d="m 28.260731,217.91888 c 0,4.98046 -7.464843,4.98046 -7.464843,0 0,-4.97462 7.464843,-4.97462 7.464843,0"
      style="fill:#f8756b;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.0629915;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-opacity:1" />
-  <path
-     inkscape:connector-curvature="0"
-     id="path550-1"
-     d="m 330.10846,100.50465 c 0,7.47071 -11.19726,7.47071 -11.19726,0 0,-7.461912 11.19726,-7.461912 11.19726,0"
-     style="fill:#55d400;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:0.75;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1" />
-  <path
-     inkscape:connector-curvature="0"
-     id="path390-2"
-     d="m 324.77716,105.82237 c -3.11241,0.0564 -5.38415,-1.72204 -5.38415,-5.27999 0,-3.553317 2.81899,-5.329979 5.33208,-5.329979 0,10.671129 0.0521,7.056639 0.0521,10.609969"
-     style="fill:#f8756b;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.82499999;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-     sodipodi:nodetypes="cscc" />
-  <path
-     inkscape:connector-curvature="0"
-     id="path550-1-0"
-     d="m 330.10846,100.50465 c 0,7.47071 -11.19726,7.47071 -11.19726,0 0,-7.46191 11.19726,-7.46191 11.19726,0"
-     style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.125;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1" />
+  <g
+     id="g8291"
+     transform="matrix(1.5,0,0,1.5,-162.25493,-50.253975)">
+    <path
+       style="fill:#55d400;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:0.75;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       d="m 330.10846,100.50465 c 0,7.47071 -11.19726,7.47071 -11.19726,0 0,-7.461912 11.19726,-7.461912 11.19726,0"
+       id="path550-1"
+       inkscape:connector-curvature="0" />
+    <path
+       sodipodi:nodetypes="cscc"
+       style="fill:#f8756b;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.82499999;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       d="m 324.77716,105.82237 c -3.11241,0.0564 -5.38415,-1.72204 -5.38415,-5.27999 0,-3.553317 2.81899,-5.329979 5.33208,-5.329979 0,10.671129 0.0521,7.056639 0.0521,10.609969"
+       id="path390-2"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#000000;stroke-width:1.125;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       d="m 330.10846,100.50465 c 0,7.47071 -11.19726,7.47071 -11.19726,0 0,-7.46191 11.19726,-7.46191 11.19726,0"
+       id="path550-1-0"
+       inkscape:connector-curvature="0" />
+  </g>
   <g
      id="g8828"
      transform="matrix(1.2309908,0,0,1.2309908,29.64421,348.8181)">
@@ -37687,48 +37691,43 @@
     <g
        id="layer1"
        inkscape:label="Title"
-       style="display:inline"><text
-   transform="scale(0.90326976,1.107089)"
-   style="font-variant:normal;font-weight:300;font-stretch:normal;font-size:14.30091858px;line-height:0%;font-family:'Aller Light';-inkscape-font-specification:Aller-Light;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.19174337"
-   id="text36"
-   x="10.923353"
-   y="60.509323">
-  <tspan
-     sodipodi:role="line"
-     id="tspan38"
-     x="10.923353"
-     y="60.509323"
-     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.97809792px;line-height:1.25;font-family:'Liberation Sans';-inkscape-font-specification:'Liberation Sans Bold';fill:#000000;fill-opacity:1;stroke-width:1.19174337">scDblFinder</tspan>
-</text>
-
-
-
-
-<text
-   transform="matrix(0.86736461,-0.49771359,0.49769359,0.86732975,0,0)"
-   style="font-variant:normal;font-weight:300;font-stretch:normal;line-height:0%;font-family:'Aller Light';-inkscape-font-specification:Aller-Light;writing-mode:lr-tb;display:inline;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none"
-   id="text36-1"
-   x="-12.962038"
-   y="186.57007">
-  <tspan
-     sodipodi:role="line"
-     id="tspan38-2"
-     x="-12.962038"
-     y="186.57007"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.66666651px;line-height:1.25;font-family:'Liberation Sans';-inkscape-font-specification:'Liberation Sans';fill:#000000;fill-opacity:1">www.bioconductor.org</tspan>
-</text>
-
-
-<flowRoot
-   style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
-   id="flowRoot974"
-   xml:space="preserve"><flowRegion
-     id="flowRegion976"><rect
-       y="-48.016811"
-       x="-58.336308"
-       height="53.033009"
-       width="64.346718"
-       id="rect978" /></flowRegion><flowPara
-     id="flowPara980" /></flowRoot></g>
+       style="display:inline">
+      <text
+         transform="scale(0.90326976,1.107089)"
+         style="font-variant:normal;font-weight:300;font-stretch:normal;font-size:14.30091858px;line-height:0%;font-family:'Aller Light';-inkscape-font-specification:Aller-Light;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.19174337"
+         id="text36"
+         x="10.923353"
+         y="60.509323">
+        <tspan
+           sodipodi:role="line"
+           id="tspan38"
+           x="10.923353"
+           y="60.509323"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.97809792px;line-height:1.25;font-family:'Liberation Sans';-inkscape-font-specification:'Liberation Sans Bold';fill:#000000;fill-opacity:1;stroke-width:1.19174337">scDblFinder</tspan>
+      </text>
+      <text
+         transform="matrix(0.86736461,-0.49771359,0.49769359,0.86732975,0,0)"
+         style="font-variant:normal;font-weight:300;font-stretch:normal;line-height:0%;font-family:'Aller Light';-inkscape-font-specification:Aller-Light;writing-mode:lr-tb;display:inline;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         id="text36-1"
+         x="-12.962038"
+         y="186.57007">
+        <tspan
+           sodipodi:role="line"
+           id="tspan38-2"
+           x="-12.962038"
+           y="186.57007"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.66666651px;line-height:1.25;font-family:'Liberation Sans';-inkscape-font-specification:'Liberation Sans';fill:#000000;fill-opacity:1">www.bioconductor.org</tspan>
+      </text>
+      <flowRoot
+         style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
+         id="flowRoot974"
+         xml:space="preserve"><flowRegion
+           id="flowRegion976"><rect
+             y="-48.016811"
+             x="-58.336308"
+             height="53.033009"
+             width="64.346718"
+             id="rect978" /></flowRegion><flowPara
+           id="flowPara980" /></flowRoot>    </g>
   </g>
 </svg>

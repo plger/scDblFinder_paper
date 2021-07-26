@@ -16,7 +16,7 @@ suppressPackageStartupMessages({
 ```{r}
 datasets <- list.files("datasets", pattern="\\.rds$", full=TRUE)
 names(datasets) <- gsub("\\.rds$","",basename(datasets))
-methods <- c('Scrublet','cxds','bcds','hybrid','scDblFinder',
+methods <- c('Scrublet','cxds','bcds','hybrid','scDblFinder.clusters','scDblFinder.random',
              'DoubletFinder','computeDoubletDensity')
 
 datasets <- lapply(datasets, readRDS)
@@ -28,6 +28,8 @@ scores <- lapply(datasets, FUN=function(x){
       "DoubletFinder"=DoubletCollection:::CallDoubletFinder(x),
       "Scrublet"=DoubletCollection:::CallScrublet(x),
       "scDblFinder"=scDblFinder(x)$scDblFinder.score,
+      "scDblFinder.clusters"=scDblFinder(x, clusters=TRUE)$scDblFinder.score,
+      "scDblFinder.random"=scDblFinder(x, clusters=FALSE)$scDblFinder.score,
       "computeDoubletDensity"=computeDoubletDensity(x),
       "DoubletDetection"=DoubletCollection:::CallDoubletDetection(x),
       DoubletCollection:::Callscds(count=x, method=method)

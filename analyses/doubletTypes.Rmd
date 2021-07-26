@@ -1,0 +1,90 @@
+---
+title: "Identifying doublet types using a direct classifier"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scDblFinder)
+  library(xgboost)
+})
+```
+
+```{r}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+scef <- scDblFinder(sce, clusters="phenoid", artificialDoublets=1, returnType="full", propRandom=0)
+ad <- scef[,scef$src=="artificial"]
+scef <- scef[,colnames(sce)]
+
+# train multi-label classifier on artificial doublets
+origins <- ad$mostLikelyOrigin
+train <- xgb.DMatrix(data=t(scater::normalizeCounts(counts(ad))), label=as.integer(origins)-1L)
+fit <- xgb.cv( data=train, nrounds=100, nfold=3,
+               max_depth=6, early_stopping_rounds=3, eval_metric="mlogloss",
+               objective="multi:softprob", num_class=length(unique(origins)),
+               subsample=0.6, verbose=FALSE )
+e <- fit$evaluation_log
+bi <- e$test_mlogloss_mean[fit$best_iteration] + e$test_mlogloss_std[fit$best_iteration]
+nrounds <- min(which(e$test_mlogloss_mean <= bi))
+fit <- xgb.train(data=train, nrounds=nrounds, max_depth=6,
+                 eval_metric="mlogloss", objective="multi:softprob",
+                 num_class=length(unique(origins)), verbose=FALSE)
+# call on true real doublets
+wRdbl <- which(scef$class=="doublet" & sce$demuxlet_cls=="DBL")
+pred <- predict(fit, newdata=t(scater::normalizeCounts(counts(scef)[,wRdbl])))
+pred <- t(matrix(pred, ncol=length(wRdbl)))
+colnames(pred) <- levels(origins)
+pred2 <- factor(colnames(pred)[apply(pred,1,FUN=which.max)], levels(origins))
+
+d <- data.frame(truth=sce$demuxlet.dbl.type[wRdbl], pred2,
+                predicted=pred2,
+                probability=rowMaxs(pred) )
+
+saveRDS(d, file="doubletTypes.rds")
+```
+
+Same with simulated doublets:
+
+```{r, eval=FALSE}
+sce <- mockDoubletSCE(c(200,300,500,300,500), ngenes=1000, dbl.rate=0.1)
+sce$cluster <- gsub("\\+cluster[0-9]$","",sce$cluster)
+scef <- scDblFinder(sce, clusters=sce$cluster, artificialDoublets=1, returnType="full", propRandom=0)
+ad <- scef[,scef$src=="artificial"]
+scef <- scef[,colnames(sce)]
+
+# train multi-label classifier on artificial doublets
+origins <- ad$mostLikelyOrigin
+train <- xgb.DMatrix(data=t(scater::normalizeCounts(counts(ad))), label=as.integer(origins)-1L)
+fit <- xgb.cv( data=train, nrounds=100, nfold=3,
+               max_depth=6, early_stopping_rounds=3, eval_metric="mlogloss",
+               objective="multi:softprob", num_class=length(unique(origins)),
+               subsample=0.6, verbose=FALSE )
+e <- fit$evaluation_log
+bi <- e$test_mlogloss_mean[fit$best_iteration] + e$test_mlogloss_std[fit$best_iteration]
+nrounds <- min(which(e$test_mlogloss_mean <= bi))
+fit <- xgb.train(data=train, nrounds=nrounds, max_depth=6,
+                 eval_metric="mlogloss", objective="multi:softprob",
+                 num_class=length(unique(origins)), verbose=FALSE)
+# call on true real doublets
+wRdbl <- colnames(sce)[which(sce$type=="doublet")]
+pred <- predict(fit, newdata=t(scater::normalizeCounts(counts(scef)[,wRdbl])))
+pred <- t(matrix(pred, ncol=length(wRdbl)))
+colnames(pred) <- levels(origins)
+pred2 <- factor(colnames(pred)[apply(pred,1,FUN=which.max)], levels(origins))
+
+d <- data.frame(truth=colData(sce)[wRdbl,"origin"], pred2,
+                predicted=pred2,
+                probability=rowMaxs(pred) )
+
+```
+
+
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+

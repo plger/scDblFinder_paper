@@ -1,0 +1,348 @@
+---
+title: "Doublet identification in single-cell sequencing data using scDblFinder"
+subtitle: "Supplementary Figures"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: Pierre-Luc Germain
+output:
+  pdf_document:
+    fig_width: 8
+    fig_height: 6
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo=FALSE)
+FIG_NB <- 0
+FIG_STRING <- "Supplementary Figure "
+getFigNb <- function(increment=FALSE){
+  if(increment) FIG_NB <<- FIG_NB + 1
+  paste0(FIG_STRING,FIG_NB)
+}
+```
+
+```{r, include=FALSE}
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(cowplot)
+  library(ggrepel)
+  library(ComplexHeatmap)
+  library(patchwork)
+  library(scDblFinder)
+  library(SingleCellExperiment)
+})
+theme_set(theme_minimal())
+source("../misc.R")
+
+vp <- function(e, aes, ..., hline=TRUE){
+  p <- ggplot(e, aes)
+  if(hline) p <- p + geom_hline(yintercept=0, linetype="dashed")
+  p + geom_violin(...) + 
+    stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+}
+```
+
+
+# `r getFigNb(TRUE)`
+
+```{r}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+d <- scDblFinder(sce, sce$phenoid, returnType="table", 
+                 artificialDoublets=1, score="weighted") # just for speedup
+th <- doubletThresholding(d)
+plotThresholds(d, dbr=dbr) + coord_cartesian(ylim=c(0,0.5))
+```
+
+### `r getFigNb()`
+
+**Example thresholding.** Plotted are the false negative rate (FNR; the rate of misclassified artificial doublets), the false positive rate (FPR; the proportion of real cells classified as doublets, excluding those called in previous iterations), the squared proportion deviation from the expected doublet rate (denoted 'dev'), and the integrated cost function to be minimized (mean of the previous). The dashed lined indicates the threshold called.
+
+
+\newpage
+
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.height=5, fig.width=8.5}
+e <- readRDS("../analyses/optims_features.rds")
+e2 <- reshape2:::melt(e[,c("dataset","AUPRC.diff","AUROC.diff","excluded")],
+                      id.vars=c("dataset","excluded"))
+removed <- c("nearestClass","distanceToNearest","distanceToNearestDoublet","observed","expected")
+e2$removed <- e2$excluded %in% removed
+e2$variable <- gsub("\\.diff","",e2$variable)
+ggplot(e2, aes(excluded, value)) + geom_hline(yintercept=0, linetype="dashed") + 
+  geom_violin(aes(fill=removed)) + stat_summary(fun.data = "mean_cl_boot", geom = "pointrange") + 
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="red")) +
+  coord_flip() + facet_wrap(~variable) +
+  xlab("Feature excluded") + ylab("Difference in metric to the median value")
+```
+
+### `r getFigNb()`
+
+**Effect of removing a feature on the dataset-relative accuracy of doublet prediction.** scDblFinder was run across the 16 benchmark datasets removing a given feature, and comparing to the median accuracy. Features in red were then removed from the default settings.
+
+
+\newpage
+
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.width=8, fig.height=7}
+res <- readRDS(file="../analyses/optims_nfeats.rds")
+res1 <- res[res$nfeatures==1000,]
+res1$processing <- "scDblFinder"
+res2 <- readRDS(file="../analyses/optims_direct.rds")
+vars <- c("dataset","processing","AUPRC","AUROC","elapsed")
+res <- rbind(res1[,vars], res2[,vars])
+rs <- rowsum(res[,c("AUPRC","AUROC")],res$dataset)/(nrow(res)/length(unique(res$dataset)))
+tmp <- res[,c("AUPRC","AUROC")]-rs[as.character(res$dataset),]
+colnames(tmp) <- paste0(colnames(tmp),".diff")
+res <- cbind(res, tmp)
+plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() +
+  vp(res, aes(processing, AUROC.diff), fill="lightgrey") + coord_flip(),
+  vp(res, aes(processing, elapsed), fill="lightgrey"), labels="AUTO", nrow=2,
+  rel_heights=c(4,3))
+```
+
+### `r getFigNb()`
+
+**Direct classification vs classifying on the kNN features.**
+The standard `scDblFinder` method is compared to training a classifier directly on the features (implemented in the package's `directDblClassification` function), either using the PCA ('default'), the normalized ('normFeatures') or the raw counts ('rawFeatures', default).
+In all cases, the doublet generation, number of features and iterative procedure is the same.
+`scDblFinder` (i.e. working on the kNN) has a better AUPRC (A, left) at a considerably greater speed than gene-based classifiers (B). Direct classification based on the raw features however had a slightly better AUROC.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.width=8.5, fig.height=7}
+res <- readRDS("../analyses/optims_hyperparams.rds")
+res$nrounds <- factor(res$nrounds)
+res$nrounds <- factor(res$nrounds, c("5","10","20","","0.25","1"))
+levels(res$nrounds) <- c("5 rnds","10 rnds","20 rnds","top","top-0.25*SD","top-1SD")
+p1 <- vp(res, aes(max_depth, AUPRC.diff), fill="lightgrey")
+p2 <- vp(res[res$max_depth==4,], aes(nrounds, AUPRC.diff), fill="lightgrey")
+plot_grid(p1,p2,labels="AUTO",nrow=2)
+```
+
+
+### `r getFigNb()`
+
+**Hyper-parameter optimization:** max tree depth (A) and number of boosting rounds (B).
+'Top' indicates the optimal number of rounds according to cross-validation logloss in the real vs artificial classification.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r}
+res <- readRDS("../analyses/optims_iter.rds")
+vp(res, aes(iter, AUPRC.diff), fill="lightgrey")
+```
+
+### `r getFigNb()`
+
+**Number of learning iteration.**
+At each round, the real cells identified as doublets are removed from the training data for the next round.
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, include=FALSE}
+res <- readRDS("../analyses/optims_nfeats.rds")
+res$nfeatures <- factor(res$nfeatures, sort(as.integer(unique(res$nfeatures))))
+res$selected <- res$nfeatures=="1000"
+p1 <- vp(res, aes(nfeatures, AUPRC.diff), aes(fill=selected)) + 
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  labs(x="Number of features used", y="Difference in AUPRC") +
+  vp(res, aes(nfeatures, elapsed), aes(fill=selected), hline=FALSE) +
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  labs(x="Number of features used", y="Running time (s)")
+
+res <- readRDS("../analyses/optims_clustCor.rds")
+res$selected <- res$clustCor==""
+p2 <- vp(res, aes(clustCor, AUPRC.diff), aes(fill=selected)) + 
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  labs(x="Number of markers used for correlation", y="Difference in AUPRC") # +
+  # vp(res, aes(clustCor, elapsed), fill="lightgray", hline=FALSE) +
+  # labs(x="Number of markers used for correlation", y="Difference in AUPRC")
+
+res <- readRDS("../analyses/optims_PCs.rds")
+res$nPCs <- sapply(strsplit(res$includePCs,", "), FUN=function(x) max(as.integer(x)))
+res$selected <- res$nPCs=="10"
+p3 <- vp(res, aes(factor(nPCs), AUPRC.diff), aes(fill=selected)) +
+  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  labs(x="Number of principal components used in training", y="Difference in AUPRC")
+```
+
+
+```{r, fig.width=8.5, fig.height=8}
+plot_grid(p1,plot_grid(p2,p3,labels=c("B","C"),nrow=1), labels=c("A",""),nrow=2)
+```
+
+### `r getFigNb()`
+
+**Effect of number of features, number of components, and marker correlation.**
+The selected default settings are in blue.
+Using the correlation across cluster-based marker genes increased running time without improving much the accuracy (B).
+
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r}
+e <- readRDS("../benchmark/benchmark.results.rds")
+
+res <- readRDS("../analyses/optims_propRandom.rds")
+res <- res[res$propRandom==1,]
+res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
+res$method <- "scDblFinder.rnd"
+e <- rbind(e, res[,colnames(e)])
+
+res <- readRDS("../analyses/optims_direct.rds")
+res <- res[res$processing=="direct rawFeatures",]
+res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
+res$method <- "directDblClassification"
+e <- rbind(e, res[,colnames(e)])
+ag <- aggregate(e[,c("elapsed","AUPRC","AUROC")], by=e[,"method",drop=FALSE], FUN=mean)
+ggplot(ag, aes(reorder(method,AUPRC), AUPRC)) + geom_col(fill="lightgrey") + 
+  scale_y_reverse() + coord_flip() + labs(x="", y="mean AUPRC") + 
+  theme(axis.text.y=element_blank(), plot.margin=margin(0,0,0,0)) + 
+  geom_text(aes(label=paste(" ",round(AUPRC,3))), hjust=0) +
+ggplot(ag, aes(reorder(method,AUPRC), AUROC)) + geom_col(fill="lightgrey") + coord_flip() + 
+  geom_text(aes(label=paste(round(AUROC,3)," ")), hjust=1) +
+  labs(x="", y="mean AUROC") + theme(axis.text.y=element_text(hjust=0.5, colour="black"), plot.margin=margin(0,0,0,0), plot.background=)
+
+```
+
+
+### `r getFigNb()`
+
+**Average area under the ROC and PR curves across datasets for each method.**
+
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r, fig.width=5, fig.height=4.5}
+sce <- readRDS("../other_datasets/GSE96583.batch1.SCE.rds")
+sce <- scDblFinder(sce[,sce$batch=="A"], clusters="cluster")
+plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE, 
+               prop.wrong.neg=propHomotypic(sce$ind), showLegend=FALSE,
+               prop.wrong.pos=propHomotypic(sce$cluster)) + 
+  ggtitle("pbmc.1A.dm") + scale_color_manual(values=c("score"="darkviolet"))
+```
+
+### `r getFigNb()`
+
+**Estimated accuracy of heterotypic doublet identification.** The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.
+
+
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r multisample, fig.width=8, fig.height=4, fig.cap=""}
+res2 <- readRDS("../analyses/multisample_results.rds")
+res2 <- reshape2::melt(res2, id.vars=c("method","dataset"))
+res2 <- res2[res2$variable %in% c("AUPRC","AUROC"),]
+res2$method <- as.factor(res2$method)
+levels(res2$method) <- c("as one","single model\nsplit thresholds", "full split", "split with\nglobal clusters")
+ggplot(res2, aes(dataset, value, fill=method)) +
+  geom_col(position="dodge") + facet_wrap(~variable) +
+  labs(x="Dataset", y="") + coord_flip() + 
+  theme(legend.position="bottom")
+```
+
+### `r getFigNb()`
+
+**Comparison of four multi-sample strategies.**
+B1 and B2 the two batches from dataset GSE96583, and contain 3 and 2 captures, respectively.
+The datasets with the 's' suffix are versions downsampled to 30%.
+Using doublet detection on each capture separately (full split) was generally comparable to treating the captures as one (and adjusting the doublet rate).
+
+
+\newpage
+
+
+
+# `r getFigNb(TRUE)`
+
+```{r fig.width=8.5, fig.height=8}
+sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
+sce <- scDblFinder(sce, sce$phenoid)
+CD <- colData(sce)
+CDd <- CD[CD$scDblFinder.class=="doublet" & !CD$scDblFinder.originAmbiguous & CD$demuxlet_cls=="DBL",]
+CDd$scDblFinder.mostLikelyOrigin <- factor(gsub("H838$","H8383",CDd$scDblFinder.mostLikelyOrigin),
+                                           levels(CDd$demuxlet.dbl.type))
+orig.correct <- do.call(rbind, strsplit(as.character(CDd$scDblFinder.mostLikelyOrigin),"+",fixed=TRUE))==do.call(rbind, strsplit(as.character(CDd$demuxlet.dbl.type),"+",fixed=TRUE))
+
+h1 <- ComplexHeatmap::Heatmap(
+  unclass(table(call=CDd$scDblFinder.mostLikelyOrigin, truth=CDd$demuxlet.dbl.type)),
+  row_title="Predicted type", column_title="True type", name="# doublets",
+  cluster_columns=FALSE, cluster_rows=FALSE, col=viridisLite::cividis(20),
+  row_names_gp=gpar(fontsize=11), column_names_gp=gpar(fontsize=11))
+
+sce <- mockDoubletSCE(c(300,500,500,800), ngenes=1000)
+sce <- scDblFinder(sce, clusters=sce$cluster)
+w <- which(sce$type=="doublet" & sce$scDblFinder.class=="doublet")
+m <- unclass(table(droplevels(sce$scDblFinder.mostLikelyOrigin[w]), sce$origin[w]))
+row.names(m) <- gsub("cluster","",row.names(m))
+colnames(m) <- gsub("cluster","",colnames(m))
+h2 <- Heatmap(m,
+  row_title="Predicted type", column_title="True type", name="# doublets",
+  cluster_columns=FALSE, cluster_rows=FALSE, col=viridisLite::cividis(20))
+
+d <- readRDS("../analyses/doubletTypes.rds")
+p3 <- Heatmap( unclass(table(d$truth, d$predicted)), viridisLite::cividis(20),
+  row_names_gp=gpar(fontsize=11), column_names_gp=gpar(fontsize=11),
+  cluster_columns=FALSE, cluster_rows=FALSE, 
+  column_title="Predicted type", row_title="True type", name="# doublets")
+p4 <- ggplot(d, aes(probability)) + geom_histogram() + xlab("Maximum label probability") + xlim(0,1)
+
+plot_grid(
+  grid.grabExpr(draw(h1)), grid.grabExpr(draw(h2)), 
+  grid.grabExpr(draw(p3)), p4,
+  nrow=2, labels="AUTO", rel_widths=c(4,3), scale=0.95
+)
+
+```
+
+### `r getFigNb()`
+
+**Failure to recognize doublet types.**
+Confusion matrices of the doublet type (i.e. originating clusters) identification from the nearest artificial doublets on the kNN, for a real dataset (A) and a simple simulation (B), and training a classifier on the problem using artificial doublets (C-D).
+The maximum label probabilities per doublet (D) of the classifier indicate a low confidence of the predictions.
+
+
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+
+```{r}
+load("../analyses/enrichment_results.RData")
+scores <- stick.scores
+scdi <- lapply(split(seq_along(scores[[1]]$disp),scores[[1]]$disp), FUN=function(i){
+  lapply(scores, FUN=function(x) x[i,])
+})
+names(scdi) <- paste0("size=",names(scdi))
+names(scdi)[1] <- "Poisson"
+pl <- lapply(names(scdi), FUN=function(x)
+  plotROCs(lapply(scdi[[x]], FUN=function(x) 1-x$FDR), scdi[[x]][[1]]$truth, th=0.95, size=4, fdr=TRUE) +
+    ggtitle(x))
+leg <- get_legend(pl[[1]])
+pl <- lapply(pl, FUN=function(x) x + theme(legend.position="none"))
+plot_grid(plotlist=pl, leg, nrow=2)
+```
+
+
+### `r getFigNb()`
+
+**FDR of 'cluster stickiness' tests across simulations with different overdispersion parameters.**
+
+
+
