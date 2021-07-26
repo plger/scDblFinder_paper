@@ -157,11 +157,12 @@ knitr::include_graphics("strategy2.svg")
 ```
 
 Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method.
-If clusters are not provided, a standard pre-processing is applied to quickly generate them:
-to improve speed, cells are first clustered into a large number of meta-cells using k-means,
-the meta-cells are then clustered using graph-based clustering, and the clusters are propagated back to the original cells. 
-Artificial doublets are then created by combining cells of different clusters in a proportional fashion. 
-In explicitly concentrating on inter-cluster doublets, we do not attempt to identify homotypic doublets, which are anyway virtually unidentifiable and relatively innocuous.
+
+If the cluster-based approach is used, the top features per cluster are instead selected.
+If `clusters` are not given, PCA (using the `scater` package with the Irlba approximation) and clustering (using `scDblFinder`'s `fastcluster` function) are performed.
+The `fastcluster` function generates a kNN network (using `BiocSingular` with the Annoy approach) followed by louvain clustering.
+If the dataset is sufficiently large (>1000 cells), a first rapid k-means clustering is used to generate a large number of meta-cells, which are then clustered using the graph-based approach, propagating clusters back to the cells themselves.
+Artificial doublets are then created by combining cells of different clusters in a proportional fashion. In explicitly concentrating on inter-cluster doublets, we do not attempt to identify homotypic doublets, which are anyway virtually unidentifiable and relatively innocuous.
 In doing so, we reduce the necessary number of artificial doublets (since no artificial doublet is 'lost' modeling homotypic doublets), and prevent the classifier from being trained to recognize cells that are indistinguishable from singlets (and would therefore call singlets as doublets).
 An alternative strategy, also available through `scDblFinder`, is to generate fully random artificial doublets, and use the iterative procedure (see below) to exclude unidentifiable artificial doublets from the training.
 In practice, both approaches have comparable performances (see below), and they can also be combined.
@@ -503,43 +504,6 @@ Then, the fitted values are then considered the expected abundance, and the prob
 
 We again tested this approach relying on different underlying distributions, on simulations with varying over-dispersion (Figure \@ref(fig:enrFDR)B). The negative binomial performed better, however all methods failed to appropriately control FDR.
 
-# Methods
-
-## scDblFinder implementation
-
-### Pre-processing and clustering
-
-`scDblFinder` first selects the most expressed features -- by default 1000, beyond which no improvement was observed (see Supplementary Figure 5A).
-
-If the cluster-based approach is used, the top features per cluster are instead selected.
-If `clusters` are not given, PCA (using the `scater` package with the Irlba approximation) and clustering (using `scDblFinder`'s `fastcluster` function) are performed.
-The `fastcluster` function generates a kNN network (using `BiocSingular` with the Annoy approach) followed by louvain clustering.
-If the dataset is sufficiently large (>1000 cells), a first rapid k-means clustering is used to generate a large number of meta-cells, which are then clustered using the graph-based approach, propagating clusters back to the cells themselves.
-
-### Artificial doublet generation
-
-### kNN evaluation and feature matrix generation
-
-### Iterative training
-
-### Thresholding
-
-### Feature aggregation
-
-### Multi-samples modes
-
-## scDblFinder operation
-This part of the methods should include the minimal system requirements needed to run the software and an overview of the workflow for the tool for users of the tool.
-
-## Software versions for benchmark
-
-**R version**: `r if(FALSE) R.version.string` "R version 4.0.3 (2020-10-10)"
-**Bioconductor version**: `r if(FALSE) BiocManager::version()` 3.12
-**Doublet identification packages**: `r if(FALSE) paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")` DoubletCollection 1.1.0, DoubletFinder 2.0.3, scDblFinder 1.7.1, scds 1.6.0, Scrublet 0.2.3
-
-## Direct classification procedure
-
-
 # Conclusions
 
 The characterization of real doublets suggests a multi-layered variation in mRNA capture efficiency, and calls for a varied approach to artificial doublet generation. The `scDblFinder` package includes a set of efficient methods for doublet detection. In particular, the main `scDblFinder` approach uses mixed doublet generation approaches and integrates insights from previous approaches into a comprehensive doublet detection method that provides robustly accurate detection across a number of benchmark datasets, at a considerably greater speed and scalability than the best alternatives. Even in complex datasets, most heterotypic doublets can be accurately identified. Although the doublet scores given by `scDblFinder` can be directly interpreted as probability, simplifying their interpration, the method also includes a trade-off thresholding procedure incorporating doublet rate expectations with classification optimization, thereby facilitating its usage. Finally, we further demonstrate that, with slight changes in parameters, the approach is also amenable to other data types such as single-nucleus ATAC-seq.
@@ -549,6 +513,14 @@ The characterization of real doublets suggests a multi-layered variation in mRNA
 In conclusion, we believe that `scDblFinder`, with its flexibility, accuracy and scalability, represents a key resource for doublet detection in high-throughput single-cell sequencing data.
 
 # Backmatter
+
+## Software versions for benchmark
+
+**R version**: `r if(FALSE) R.version.string` "R version 4.0.3 (2020-10-10)"
+**Bioconductor version**: `r if(FALSE) BiocManager::version()` 3.12
+**Doublet identification packages**: `r if(FALSE) paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")` DoubletCollection 1.1.0, DoubletFinder 2.0.3, scDblFinder 1.7.1, scds 1.6.0, Scrublet 0.2.3. Packages were launched through `DoubletCollection` using the default parameters.
+
+All code to reproduce the analyses and the figures is available at https://github.com/plger/scDblFinder_paper
 
 ## Software availability
 
@@ -564,7 +536,7 @@ https://github.com/plger/scDblFinder
 ## Author information
 
 PLG developed the scDblFinder method and performed the analyses, and wrote the paper with feedback from all authors.
-AL contributed the alternative methods to the package and provided support.
+AL contributed alternatives methods to the package and provided support.
 WCM provided general feedback and testing, and helped with the design of the enrichment tests.
 MDR supervised and funded the project.
 
