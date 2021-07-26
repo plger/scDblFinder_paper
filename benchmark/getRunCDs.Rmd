@@ -1,0 +1,32 @@
+---
+title: "Getting the scDblFinder results for benchmark datasets"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(scDblFinder)
+  library(SingleCellExperiment)
+})
+```
+
+
+```{r}
+datasets <- list.files("datasets", pattern="\\.rds$", full=TRUE)
+names(datasets) <- gsub("\\.rds$","",basename(datasets))
+datasets <- lapply(datasets, readRDS)
+res <- list()
+for(f in names(datasets)){
+  x <- datasets[[f]]
+  set.seed(1234)
+  res[[f]] <- colData(scDblFinder(x[[1]], clusters=TRUE))
+}
+saveRDS(res, file="../paper/data/benchmark_datasets_called.CD2.rds")
+```
+
+
+```{r}
+sessionInfo()
+```
+
