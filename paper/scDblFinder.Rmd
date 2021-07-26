@@ -61,7 +61,7 @@ It is therefore common in contemporary single-cell experiments to have 10-20% do
 'Heterotypic' doublets (formed by cells of distinct transcriptional states), instead, can appear as an artifactual novel cell type and disrupt downstream analyses [@germainPipeCompGeneral2020b].
 
 Experimental methods have been devised for detecting doublets in multiplexed samples, using barcodes [@stoeckiusCellHashingBarcoded2018] or genotypes (e.g. single-nucleotide polymorphisms) to identify droplets containing material from more than one sample [@kangMultiplexedDropletSinglecell2018].
-While evidently useful, these identify only a fraction of the doublets, and fail to detect doublets formed by cells from the same sample, including heterotypic doublets (this is illustrated in Figure \@ref(fig:adjustedPR)A).
+While evidently useful, these identify only a fraction of the doublets, and fail to detect doublets formed by cells from the same sample, including heterotypic doublets.
 
 A number of computational approaches have therefore been developed to identify doublets on the basis of their transcriptional profile [@mcginnisDoubletFinderDoubletDetection2019; @depasqualeDoubletDeconDeconvoluting2019; @wolockScrubletComputationalIdentification2019; @baisScdsComputationalAnnotation2020; @bernsteinSoloDoublet2020].
 Most of these approaches rely on the generation of artificial doublets by summing or averaging real cells, and score the similarity between them and the real cells.
@@ -81,11 +81,11 @@ In particular, the `scDblFinder` method integrates insights from previous approa
 
 ## Characterization of real doublets
 
-First, we characterized real doublets using a dataset where the genotypes coincided with cell types [@tianScRNAseqMixologyBetter2018] and therefore allowed the identification of the cell types composing each doublet (Figure \@ref(fig:realDbls)).
+First, we characterized real doublets using a dataset of genetically distinct cell lines [@tianScRNAseqMixologyBetter2018]. Because each cell line represents a distinct and more or less homogeneous transcriptional state, it is possible to identify the `cell types' composing each doublet (Figure \@ref(fig:realDbls)).
 Although often larger, the median library sizes of  doublets were systematically smaller than the sum of the median library sizes of composing cell types (Figure \@ref(fig:realDbls)A).
 We next investigated the relative contributions of the composing cell types using non-negative least square regression, expecting the larger cell types to contribute more to the doublet's transcriptome.
 
-```{r realDbls, fig.width=9, fig.height=8, fig.cap="Characterization of real doublets. A: Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. B: Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions."}
+```{r realDbls, fig.width=9, fig.height=8, fig.cap="Characterization of real doublets. A: Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. B: Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions. Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome."}
 # real doublet sizes compared to expected sizes
 sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
 md <- colData(sce)
@@ -133,8 +133,8 @@ p2 <- ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed
   geom_point(aes(size=lsize, colour=doublet.type)) + scale_color_discrete(guide=FALSE) +
   geom_line(data=ag2, aes(expected.ratio, ratio), size=1.5, colour="grey") + 
   geom_text_repel(data=ag2, aes(expected.ratio, ratio, label=doublet.type), direction="y", nudge_y=c(0.1,-0.1)) +
-  labs(x="Expected proportion of first celltype (based on median celltype library size)",
-       y="Estimated proportion of first celltype", size="Library size")
+  labs(x="Expected proportion (based on median cell type library size)",
+       y="Estimated proportion", size="Library size")
 
 
 plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
@@ -516,9 +516,8 @@ In conclusion, we believe that `scDblFinder`, with its flexibility, accuracy and
 
 ## Software versions for benchmark
 
-**R version**: `r if(FALSE) R.version.string` "R version 4.0.3 (2020-10-10)"
-**Bioconductor version**: `r if(FALSE) BiocManager::version()` 3.12
-**Doublet identification packages**: `r if(FALSE) paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")` DoubletCollection 1.1.0, DoubletFinder 2.0.3, scDblFinder 1.7.1, scds 1.6.0, Scrublet 0.2.3. Packages were launched through `DoubletCollection` using the default parameters.
+Analyses were run on `r if(FALSE) R.version.string` R version 4.0.3 (2020-10-10), Bioconductor version `r if(FALSE) BiocManager::version()` 3.12, using the following 
+versions for the Doublet identification packages: `r if(FALSE) paste(c(sapply(c("DoubletCollection","DoubletFinder","scDblFinder","scds"), FUN=function(x) paste(x,packageVersion(x))), paste("Scrublet",system("/conda/bin/pip list | grep scrublet | cut -d' ' -f 2- | sed 's/ //g'", intern=TRUE))), collapse=", ")` DoubletCollection 1.1.0, DoubletFinder 2.0.3, scDblFinder 1.7.1, scds 1.6.0, Scrublet 0.2.3. Packages were launched through `DoubletCollection` using the default parameters.
 
 All code to reproduce the analyses and the figures is available at https://github.com/plger/scDblFinder_paper
 
