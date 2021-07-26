@@ -43,12 +43,10 @@ vp <- function(e, aes, ..., hline=TRUE){
 
 # `r getFigNb(TRUE)`
 
-```{r}
+```{r, fig.height=4, fig.width=6}
 sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
-d <- scDblFinder(sce, sce$phenoid, returnType="table", 
-                 artificialDoublets=1, score="weighted") # just for speedup
-th <- doubletThresholding(d)
-plotThresholds(d, dbr=dbr) + coord_cartesian(ylim=c(0,0.5))
+d <- scDblFinder(sce, returnType="table", artificialDoublets=1)
+plotThresholds(d) + coord_cartesian(ylim=c(0,0.25))
 ```
 
 ### `r getFigNb()`
@@ -97,7 +95,7 @@ tmp <- res[,c("AUPRC","AUROC")]-rs[as.character(res$dataset),]
 colnames(tmp) <- paste0(colnames(tmp),".diff")
 res <- cbind(res, tmp)
 plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() +
-  vp(res, aes(processing, AUROC.diff), fill="lightgrey") + coord_flip(),
+  vp(res, aes(processing, AUROC.diff), fill="lightgrey") + xlab("") + coord_flip(),
   vp(res, aes(processing, elapsed), fill="lightgrey"), labels="AUTO", nrow=2,
   rel_heights=c(4,3))
 ```
@@ -126,7 +124,7 @@ plot_grid(p1,p2,labels="AUTO",nrow=2)
 
 ### `r getFigNb()`
 
-**Hyper-parameter optimization:** max tree depth (A) and number of boosting rounds (B).
+**Hyperparameter optimization:** max tree depth (A) and number of boosting rounds (B).
 'Top' indicates the optimal number of rounds according to cross-validation logloss in the real vs artificial classification.
 
 \newpage
