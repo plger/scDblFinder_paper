@@ -180,13 +180,13 @@ These can mislead the classifier.
 For this reason, classification and thresholding are performed in an iterative fashion:
 at each round, the cells identified as doublets are removed from the training data for the next round.
 
-Using the benchmark datasets from @xiBenchmarkingComputationalDoubletDetection2021, we next optimized a number of parameters in the procedure, notably regarding features to include and learning hyper-parameters, so as to provide robust default parameters.
+Using the benchmark datasets from @xiBenchmarkingComputationalDoubletDetection2021, we next optimized a number of parameters in the procedure, notably regarding features to include and hyperparameters, so as to provide robust default parameters.
 Some features, such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet, had a negative impact on performance (Supplementary Figure 1), presumably because it led to over-fitting.
 Indeed, because artificial doublet creation can only approximate real doublets, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing _artificial_ doublets from real cells, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from singlets).
 To illustrate this, we used `scDblFinder` without the dimensional reduction and kNN steps, which arguably involve a loss of information, and trained the classifier directly on the expression of the selected genes.
 This resulted in a reduction in AUPRC in real datasets (Supplementary Figure 2 and Figure \@ref(fig:benchmark1)).
 
-We finally optimized training hyper-parameters (Supplementary Figure 3) as well as the number of iterations (Supplementary Figure 4), finding that a relatively low number of iterations (2-3) was sufficient.
+We finally optimized hyperparameters (Supplementary Figure 3) as well as the number of iterations (Supplementary Figure 4), finding that a relatively low number of iterations (2-3) was sufficient.
 
 ## scDblFinder outperforms alternative methods
 
@@ -406,7 +406,7 @@ The problem appears to be that, due to the very large variations in library size
 As a consequence, we can typically call at least one of the two originating cell types, but seldom both.
 In the real dataset, at least 73% of cases at least one of the two originating cell type is correctly identified (random expectation: 36%), but both are correct in only 20% of cases.
 
-## Differential doublet abundance
+### Differential doublet abundance
 
 Assuming an adequate doublet origin identification, we could then investigate whether more doublets of given types were found than expected.
 Such enrichment could, for instance, indicate cell-to-cell interactions.
@@ -455,7 +455,7 @@ plot_grid(
 )
 ```
 
-### Cell type stickiness
+#### Cell type stickiness
 
 The `stickiness' of each cluster (as proxy for cell types) can be evaluated by fitting a single generalized linear model on the observed abundance of doublets of each origin, in the following way:
 
@@ -491,7 +491,7 @@ plot_grid(p1 + ggtitle("Cluster stickiness") + theme(legend.position="none"),
 ```
 
 
-### Enrichment for specific combinations
+#### Enrichment for specific combinations
 
 We next sought to establish a test for the enrichment of specific combinations.
 Here, we simply computed the probability of the observed counts for each combination using different models.
