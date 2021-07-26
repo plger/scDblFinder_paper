@@ -168,7 +168,8 @@ runParams <- function(ll, params=list(
   message("Running ", nrow(eg), " combinations on ", length(ll), " datasets.")
   if(is.null(BPPARAM)) BPPARAM <- SerialParam()
   if(is.numeric(BPPARAM)) BPPARAM <- MulticoreParam(min(nrow(eg),BPPARAM))
-  res <- bplapply(seq_len(nrow(eg)), FUN=function(i){
+  #res <- bplapply(seq_len(nrow(eg)), BPPARAM=BPPARAM, FUN=function(i){
+  res <- lapply(seq_len(nrow(eg)), FUN=function(i){
     pp <- lapply(eg[i,], FUN=function(x) x[[1]])
     if(is.null(pp$clusters)) pp <- pp[setdiff(names(pp),"clusters")]
     set.seed(pp$seeds)
