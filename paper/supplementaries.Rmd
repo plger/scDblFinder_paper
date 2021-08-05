@@ -237,7 +237,6 @@ plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE,
 **Estimated accuracy of heterotypic doublet identification.** The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.
 
 
-
 \newpage
 
 # `r getFigNb(TRUE)`
@@ -260,6 +259,26 @@ ggplot(res2, aes(dataset, value, fill=method)) +
 B1 and B2 the two batches from dataset GSE96583, and contain 3 and 2 captures, respectively.
 The datasets with the 's' suffix are versions downsampled to 30%.
 Using doublet detection on each capture separately (full split) was generally comparable to treating the captures as one (and adjusting the doublet rate).
+
+
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
+```{r scATAC, fig.height=4, fig.width=6}
+cd <- readRDS("../other_datasets/atac.colData.rds")
+plotROCs(list( ArchR=cd$DoubletEnrichment, 
+               "scDblFinder\nraw"=cd$scDblFinder.raw, 
+               "scDblFinder\naggregation"=cd$scDblFinder.score), 
+         truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
+```
+
+### `r getFigNb()`
+
+**Doublet identification in single-nucleus ATAC-seq** Performance of `scDblFinder` with default (.raw) parameters or on aggregated features (.aggregation) versus ArchR (GSE162690 dataset).
+
+
 
 
 \newpage
