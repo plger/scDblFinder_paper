@@ -57,7 +57,7 @@ The proportion of doublets has been shown to be proportional to the number of ce
 It is therefore at present common in single-cell experiments to have 10-20% doublets, making accurate doublet detection critical.
 
 'Homotypic' doublets, which are formed by cells of the same type (i.e. similar transcriptional state), are very difficult to identify on the basis of their transcriptome alone [@mcginnisDoubletFinderDoubletDetection2019]. They are also, however, relatively innocuous for most purposes, as they appear highly similar to singlets.
-'Heterotypic' doublets (formed by cells of distinct transcriptional states), instead, can appear as an artefactual novel cell type and disrupt downstream analyses [@germainPipeCompGeneral2020b].
+'Heterotypic' doublets (formed by cells of distinct transcriptional states), instead, can appear as an artifactual novel cell type and disrupt downstream analyses [@germainPipeCompGeneral2020b].
 
 Experimental methods have been devised for detecting doublets in multiplexed samples, using barcodes [@stoeckiusCellHashingBarcoded2018] or genotypes (e.g. single-nucleotide polymorphisms) to identify droplets containing material from more than one sample [@kangMultiplexedDropletSinglecell2018].
 While evidently useful, these identify only a fraction of the doublets, and fail to detect doublets formed by cells from the same sample, including heterotypic doublets.
@@ -172,7 +172,7 @@ Rather than selecting a specific neighborhood size, the ratio is calculated at d
 A distance-weighted ratio is also included.
 Further cell-level predictors are added, including: projections on principal components; library size; and co-expression scores [based on a variation to @baisScdsComputationalAnnotation2020].
 `scDblFinder` then trains gradient boosted trees to identify, based on these features, artificial doublets from real cells.
-Finally, a thresholding procedure decides the score at which to call a cell by simultaneously minimizing the misclassification rate and the expected doublet rate (Supplementary Figure 1).
+Finally, a thresholding procedure decides the score at which to call a cell by simultaneously minimizing the misclassification rate and the expected doublet rate (see methods and Supplementary Figure 1).
 
 A key problem with classifier-based approaches is that some of the real cells are mislabeled, in the sense that they are in fact doublets labeled as singlets.
 These can mislead the classifier.
@@ -262,7 +262,7 @@ Several of the benchmark datasets have true doublets flagged by their mixing of 
 In most of these cases, however, the doublets include also inter-individual homotypic doublets (in the sense of being a combination of cells of the same type from different individuals), which are difficult to detect from gene expression (Figure \@ref(fig:adjustedPR)A).
 In addition, they miss heterotypic doublets that are the result of the combination of different cell types from the same individual.
 Indeed, datasets where there is a full correspondence between cell type and individual (such as the human-mouse mixtures, e.g. hm-6k and hm-12k) typically have a much higher area under the ROC and PR curves (Figure \@ref(fig:benchmark1)).
-It is therefore likely that the reported accuracy is below the actual one in detecting heterotypic doublets.
+It is therefore likely that the accuracy reported in the benchmark is below the actual one in detecting heterotypic doublets.
 Based on the frequency of the different individuals and cell types in a dataset, it is however possible to infer the expected rate of inter-individual homotypic doublets and intra-individual heterotypic doublets.
 This, in turns, allows us to adjust the measured true positive rate (TPR) and false discovery rate and get a better picture of our ability to detect heterotypic doublets.
 Figure \@ref(fig:adjustedPR)B shows such an analysis for a complex dataset from @kangMultiplexedDropletSinglecell2018 .
