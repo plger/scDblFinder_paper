@@ -8,5 +8,5 @@ For the `scDblFinder` package itself, visit the package's [github page](https://
 [Bioconductor vignette](https://bioconductor.org/packages/release/bioc/vignettes/scDblFinder/inst/doc/scDblFinder.html).
 
 The manuscript source file, including the code to generate the main figures, can be found in [paper/scDblFinder.Rmd](paper/scDblFinder.Rmd).
-Supplementary Figures are generated in [paper/supplementaries.Rmd](paper/supplementaries.Rmd).
+Supplementary Figures are generated in [paper/supplementaries.Rmd](paper/supplementaries.Rmd), and a rendered version is available in [paper/supplementaries.pdf](paper/supplementaries.pdf).
 Other folders contain analyses whose results are then used by those files.
