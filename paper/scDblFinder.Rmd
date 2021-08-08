@@ -2,16 +2,11 @@
 title: "Doublet identification in single-cell sequencing data using scDblFinder"
 author: 
 - name: Pierre-Luc Germain
-  affiliation:
-    - DMLS Lab of Statistical Bioinformatics, UZH & 
-    - D-HEST Institute for Neuroscience, ETH & 
-    - Swiss Institute of Bioinformatics
+  affiliation: DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics
 - name: Aaron Lun
 - name: Will C. Macnair
 - name: Mark D. Robinson
-  affiliation: 
-    - DMLS Lab of Statistical Bioinformatics, UZH & 
-    - Swiss Institute of Bioinformatics
+  affiliation: DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics
 output:
   bookdown::html_document2:
     code_folding: hide
@@ -84,7 +79,7 @@ In order to determine the best strategy for generating artificial doublets, we f
 Although often larger, the median library sizes of  doublets were systematically smaller than the sum of the median library sizes of composing cell types (Figure \@ref(fig:realDbls)A).
 We next investigated the relative contributions of the composing cell types using non-negative least square regression, expecting the larger cell types to contribute more to the doublet's transcriptome.
 
-```{r realDbls, fig.width=9, fig.height=8, fig.cap="**Characterization of real doublets. A:** Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. **B:** Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome."}
+```{r realDbls, fig.width=9, fig.height=8, fig.cap="**Characterization of real doublets. A:** Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. The dashed line indicates the diagonal. **B:** Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome. The dashed line indicates the diagonal, and the thick line indicates the weighted mean per doublet type."}
 # real doublet sizes compared to expected sizes
 sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
 md <- colData(sce)
@@ -195,7 +190,7 @@ Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to altern
 `scDblFinder` has the highest mean area under the precision-recall (PR) curve (Supplementary Figure 6), ranking first in a majority of datasets, and otherwise typically very close to the first.
 In addition, in runs at a fraction of the time for instance required by the next best method, `DoubletFinder` (Figure \@ref(fig:benchmark1), left).
 
-```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black."}
+```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods in bold are available through the scDblFinder package."}
 e <- readRDS("../benchmark/benchmark.results.rds")
 
 res <- readRDS("../analyses/optims_direct.rds")
@@ -379,12 +374,12 @@ In contrast, running the samples fully separately is computationally highly effi
 
 We next investigated whether `scDblFinder` could be applied to other types of single-cell data prone to doublets, such as single-cell ATACseq.
 To evaluate this, we used the mixture of 10 cell lines from @granjaArchRScalableSoftware2021 .
-With default parameters, `scDblFinder` performed very poorly (Figure \@ref(fig:scATAC)).
+With default parameters, `scDblFinder` performed very poorly (Supplementary Figure 10).
 This is chiefly because `scDblFinder` follows the common scRNAseq strategy of selecting an informative subset of the features, while ATACseq reads are typically sparsely distributed across the genome. 
 However, working with all features (i.e. peaks) is computationally very expensive.
 An alternative to both approaches is to begin by reducing the size of the dataset by _aggregating_ correlated features into a relatively small set, thereby using information from all.
 These aggregated features can then directly be used as the space in which to calculate distances.
-This method yielded equal or better performance than specialized single-cell ATACseq software (Figure \@ref(fig:scATAC)).
+This method yielded equal or better performance than specialized single-cell ATACseq software (Supplementary Figure 10).
 
 ## Doublet origins and enrichment analysis
 
@@ -564,9 +559,8 @@ The direct classification approach is implemented in the `directDblClassificatio
 
 ## Feature aggregation
 
-For feature aggregation, `scDblFinder` first normalizes the counts using the Term Frequency - Inverse Document Frequency (TF-IDF) normalization, as implemented in Stuart & Butler et al. 2019. PCA is then performed and the features are clustered into the desired number of meta-features using mini-batch k-means (or simple k-means if not available). The counts are then summed per meta-feature.
+For feature aggregation, `scDblFinder` first normalizes the counts using the Term Frequency - Inverse Document Frequency (TF-IDF) normalization, as implemented in @stuartComprehensiveIntegrationSingleCell2019. PCA is then performed and the features are clustered into the desired number of meta-features using mini-batch k-means [@hicksMbkmeansFastClustering2021] or, if not available, simple k-means. The counts are then summed per meta-feature.
 
-## 
 
 # Backmatter
 
@@ -583,11 +577,11 @@ No competing interests were disclosed.
 
 ## Grant information
 
-Please state who funded the work discussed in this article, whether it is your employer, a grant funder etc. Please do not list funding that you have that is not relevant to this specific piece of research. For each funder, please state the funder's name, the grant number where applicable, and the individual to whom the grant was assigned. If your work was not funded by any grants, please include the line: 'The author(s) declared that no grants were involved in supporting this work.'
+*Please state who funded the work discussed in this article, whether it is your employer, a grant funder etc. Please do not list funding that you have that is not relevant to this specific piece of research. For each funder, please state the funder's name, the grant number where applicable, and the individual to whom the grant was assigned. If your work was not funded by any grants, please include the line: 'The author(s) declared that no grants were involved in supporting this work.'*
 
 ## Acknowledgments
 
-This section should acknowledge anyone who contributed to the research or the article but who does not qualify as an author based on the criteria provided earlier (e.g. someone or an organization that provided writing assistance). Please state how they contributed; authors should obtain permission to acknowledge from all those mentioned in the Acknowledgments section.
+We thank Miles Xi and Jingyi Jessica for help with their benchmark datasets; Jeffrey Granja for support with ArchR and its attached dataset; and the Robinson group and users for feedback.
 
 
 # References
