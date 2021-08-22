@@ -239,7 +239,7 @@ dblTypesScheme <- function(){
 
   d2 <- data.frame( x=d$x[c(wa1,wb1,wc1)], xend=d$x[c(wa2,wb2,wc2)],
                     y=d$y[c(wa1,wb1,wc1)], yend=d$y[c(wa2,wb2,wc2)],
-                    type=c("intra-genotype\nheterotypic", "inter-genotype\nheterotypic",
+                    type=c("within-genotype\nheterotypic", "inter-genotype\nheterotypic",
                            "inter-genotype\nhomotypic") )
   d2$xmean <- (d2$x+d2$xend)/2
   d2$ymean <- (d2$y+d2$yend)/2
