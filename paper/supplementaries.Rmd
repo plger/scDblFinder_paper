@@ -111,6 +111,21 @@ In all cases, the doublet generation, number of features and iterative procedure
 
 # `r getFigNb(TRUE)`
 
+```{r}
+vi <- readRDS("data/varImportance.rds")
+ggplot(vi, aes(Feature, Gain)) + geom_boxplot() + coord_flip() + ylab("Relative contribution (Gain)")
+```
+
+
+### `r getFigNb()`
+
+**Variable importance calculated during training.**
+Each dot represents a dataset. For the principal components, the gain of the most informative component per dataset is used. `ratio.broad` refers to the ratio of artificial doublets in the largest neighborhood looked at (which varies across datasets).
+
+\newpage
+
+# `r getFigNb(TRUE)`
+
 ```{r, fig.width=8.5, fig.height=7}
 res <- readRDS("../analyses/optims_hyperparams.rds")
 res$nrounds <- factor(res$nrounds)

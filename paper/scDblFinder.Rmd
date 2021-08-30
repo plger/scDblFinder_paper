@@ -180,15 +180,16 @@ Some features, such as the distance to the nearest doublet or whether the neares
 Indeed, because artificial doublet creation can only approximate real doublets, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing _artificial_ doublets from _real_ cells, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from _real_ singlets).
 To test the hypothesis that this can lead to overfitting, we used `scDblFinder` without the dimensional reduction and kNN steps, which arguably involve a loss of information, and trained the classifier directly on the expression of the selected genes.
 This resulted in a reduction in AUPRC in real datasets (Supplementary Figure 3 and Figure \@ref(fig:benchmark1)).
+Finally, in line with a discrepancy between the trained and real problems, we observed that the variable importance calculated during training (Supplementary Figure 4) did not necessarily match that of the variable drop experiments (Supplementary Figure 2).
 
-We finally optimized hyperparameters (Supplementary Figure 4) as well as the number of iterations (Supplementary Figure 5), finding that a relatively low number of iterations (2-3) was sufficient.
+We finally optimized hyperparameters (Supplementary Figure 5) as well as the number of iterations (Supplementary Figure 6), finding that a relatively low number of iterations (2-3) was sufficient.
 
 ## scDblFinder outperforms alternative methods
 
 A previous version of `scDblFinder` was already compared, and shown superior to existing alternatives in an independent benchmark [see @xiProtocolExecutingBenchmarking2021, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021].
 Here we reproduced this benchmark using the most recent versions of the packages, and including variant methods from the `scDblFinder` package (among which the updated version of `scran`'s original method, and now available in the `scDblFinder` package as `computeDoubletDensity`). 
 Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across the real benchmark datasets.
-`scDblFinder` has the highest mean area under the precision-recall (PR) curve (Supplementary Figure 6), ranking first in a majority of datasets, and otherwise typically very close to the top.
+`scDblFinder` has the highest mean area under the precision-recall (PR) curve (Supplementary Figure 8), ranking first in a majority of datasets, and otherwise typically very close to the top.
 In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
 
 ```{r benchmark1, fig.width=9, fig.height=4.5, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods in bold are available through the scDblFinder package."}
@@ -278,13 +279,13 @@ d <- data.frame(x=sum(!x)/length(x),
 p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRUE, 
                prop.wrong.neg=prop.intraind, prop.wrong.pos=prop.homotypic,
                showLegend=FALSE) + scale_color_manual(values=c("score"="darkviolet")) +
-  geom_point(data=d, aes(x,y), size=3.5) +
+  geom_point(data=d, aes(x,y), size=3.5)
 plot_grid(dblTypesScheme(), 
           p2 + theme(legend.position="none"), 
           scale=0.95, labels="AUTO")
 ```
 
-Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in Supplementary Figure 8).
+Adjusting for both types of error in the truth, the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in Supplementary Figure 9).
 
 ## Flexible thresholding for doublet calling
 
@@ -371,7 +372,7 @@ plot_grid(
 
 Multiple samples are often profiled and analyzed together, with the very common risk of batch effects (either technical or biological) across samples [@lutgeCellMixSQuantifyingVisualizing2021].
 Therefore, while the cells from all samples might in principle provide more information for doublet detection than a single sample can afford on its own, this must be weighted against the risk of bias due to technical differences.
-To investigate this, we implemented different multi-sample approaches and tested them on two real multi-sample datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Supplementary Figure 9).
+To investigate this, we implemented different multi-sample approaches and tested them on two real multi-sample datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Supplementary Figure 10).
 
 The different multi-sample strategies had only a minor impact on the accuracy of the identification.
 Based on these results, the best overall strategy appears to be to process all samples as if they were one, however in our experience this can lead to biases against some samples when there are very large variations (e.g. in number of cells or coverage) across samples (not shown). This approach also greatly increases running time.
@@ -381,16 +382,16 @@ In contrast, running the samples fully separately is computationally highly effi
 
 We next investigated whether `scDblFinder` could be applied to other types of single-cell data prone to doublets, such as single-cell ATACseq.
 To evaluate this, we used the mixture of 10 cell lines from @granjaArchRScalableSoftware2021 .
-With default parameters, `scDblFinder` performed very poorly (Supplementary Figure 10).
+With default parameters, `scDblFinder` performed very poorly (Supplementary Figure 11).
 This is chiefly because `scDblFinder` follows the common scRNAseq strategy of selecting an informative subset of the features, while ATACseq reads are typically sparsely distributed across the genome. 
 However, working with all features (i.e. peaks) is computationally very expensive.
 An alternative to both approaches is to begin by reducing the size of the dataset by _aggregating_ correlated features into a relatively small set, thereby using information from all.
 These aggregated features can then directly be used as the space in which to calculate distances.
-This method yielded equal or better performance than specialized single-cell ATACseq software (Supplementary Figure 10).
+This method yielded equal or better performance than specialized single-cell ATACseq software (Supplementary Figure 11).
 
 ## Doublet origins and enrichment analysis
 
-When artificial doublets are generated between clusters, we can keep track of the clusters composing them, and we reasoned that this information could be used to infer the clusters composing real doublets (henceafter referred to as 'doublet origin'). Using a simulation as well as the aforementioned real dataset with doublets of known origins (mixture of 5 cell lines from @tianScRNAseqMixologyBetter2018), we assessed the accuracy of doublet origin prediction based on the nearest artificial doublets in the kNN. These proved inaccurate, both in real and simulated data (Supplementary Figure 11A-B). Even training a classifier directly on this problem failed (Supplementary Figure 11C-D).
+When artificial doublets are generated between clusters, we can keep track of the clusters composing them, and we reasoned that this information could be used to infer the clusters composing real doublets (henceafter referred to as 'doublet origin'). Using a simulation as well as the aforementioned real dataset with doublets of known origins (mixture of 5 cell lines from @tianScRNAseqMixologyBetter2018), we assessed the accuracy of doublet origin prediction based on the nearest artificial doublets in the kNN. These proved inaccurate, both in real and simulated data (Supplementary Figure 12A-B). Even training a classifier directly on this problem failed (Supplementary Figure 12C-D).
 The problem appears to be that, due to the very large variations in library sizes (and related variations in relative contributions of the composing cells -- see Figure \@ref(fig:realDbls)B), doublets often contain a large fraction of reads from one cell type, and conversely a small fraction from the other cell type.
 As a consequence, we can typically call at least one of the two originating cell types, but seldom both.
 In the real dataset, at least one of the two originating cell type is correctly identified in 73% of doublets (random expectation: 36%), but both are correct in only 20% of cases.
@@ -450,9 +451,9 @@ p1 <- plot_grid(
 
 The `stickiness' of each cluster (as proxy for cell types) can be evaluated by fitting a single generalized linear model on the observed abundance of doublets of each origin (see Methods).
 We tested the performance of this test under different underlying distributions using simulated doublet counts.
-The number of doublets of each type is generated from random expectation with or without added stickiness (as factors of 1 to 3 on the probability) using negative binomial distributions with different over-dispersion parameters (Figure \@ref(fig:dblenr)C and Supplementary Figure 12).
+The number of doublets of each type is generated from random expectation with or without added stickiness (as factors of 1 to 3 on the probability) using negative binomial distributions with different over-dispersion parameters (Figure \@ref(fig:dblenr)C and Supplementary Figure 13).
 The quasi-binomial showed the best performance, followed by the negative binomial, but in all cases the p-values were not well calibrated and many false positives were reported at a nominal FDR<0.05.
-This was robust across different over-dispersion values (Supplementary Figure 12).
+This was robust across different over-dispersion values (Supplementary Figure 13).
 
 
 ```{r}
