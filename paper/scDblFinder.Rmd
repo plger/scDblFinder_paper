@@ -6,6 +6,7 @@ author:
 - name: Aaron Lun
   affiliation: Genentech Inc., South San Francisco, CA USA
 - name: Will C. Macnair
+  affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
 - name: Mark D. Robinson
   affiliation: DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics
 output:
