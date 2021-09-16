@@ -43,22 +43,6 @@ vp <- function(e, aes, ..., hline=TRUE){
 
 # `r getFigNb(TRUE)`
 
-```{r, fig.height=4, fig.width=6}
-sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
-d <- scDblFinder(sce, returnType="table", artificialDoublets=1)
-plotThresholds(d) + coord_cartesian(ylim=c(0,0.25))
-```
-
-### `r getFigNb()`
-
-**Example thresholding.** Plotted are the false negative rate (FNR; the rate of misclassified artificial doublets), the false positive rate (FPR; the proportion of real cells classified as doublets, excluding those called in previous iterations), the squared proportion deviation from the expected doublet rate (denoted 'dev'), and the integrated cost function to be minimized (mean of the previous). The dashed lined indicates the threshold called.
-
-
-\newpage
-
-
-# `r getFigNb(TRUE)`
-
 ```{r, fig.height=5, fig.width=8.5}
 e <- readRDS("../analyses/optims_features.rds")
 e2 <- reshape2:::melt(e[,c("dataset","AUPRC.diff","AUROC.diff","excluded")],
@@ -252,53 +236,8 @@ plotROCs(list(score=sce$scDblFinder.score), sce$multiplets=="doublet", fdr=TRUE,
 **Estimated accuracy of heterotypic doublet identification.** The two shaded areads represent the expected proportion of, respectively, intra-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the truth) and inter-genotype homotypic doublets.
 
 
-\newpage
-
-# `r getFigNb(TRUE)`
-
-```{r multisample, fig.width=8, fig.height=4, fig.cap=""}
-res2 <- readRDS("../analyses/multisample_results.rds")
-res2 <- reshape2::melt(res2, id.vars=c("method","dataset"))
-res2 <- res2[res2$variable %in% c("AUPRC","AUROC"),]
-res2$method <- as.factor(res2$method)
-levels(res2$method) <- c("as one","single model\nsplit thresholds", "full split", "split with\nglobal clusters")
-ggplot(res2, aes(dataset, value, fill=method)) +
-  geom_col(position="dodge") + facet_wrap(~variable) +
-  labs(x="Dataset", y="") + coord_flip() + 
-  theme(legend.position="bottom")
-```
-
-### `r getFigNb()`
-
-**Comparison of four multi-sample strategies.**
-B1 and B2 the two batches from dataset GSE96583, and contain 3 and 2 captures, respectively.
-The datasets with the 's' suffix are versions downsampled to 30%.
-Using doublet detection on each capture separately (full split) was generally comparable to treating the captures as one (and adjusting the doublet rate).
-
-
 
 \newpage
-
-# `r getFigNb(TRUE)`
-
-```{r scATAC, fig.height=4, fig.width=6}
-cd <- readRDS("../other_datasets/atac.colData.rds")
-plotROCs(list( ArchR=cd$DoubletEnrichment, 
-               "scDblFinder\nraw"=cd$scDblFinder.raw, 
-               "scDblFinder\naggregation"=cd$scDblFinder.score), 
-         truth=cd$DemuxletClassify=="DBL", fdr=TRUE)
-```
-
-### `r getFigNb()`
-
-**Doublet identification in single-nucleus ATAC-seq** Performance of `scDblFinder` with default (.raw) parameters or on aggregated features (.aggregation) versus ArchR (GSE162690 dataset).
-
-
-
-
-\newpage
-
-
 
 # `r getFigNb(TRUE)`
 
