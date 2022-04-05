@@ -1,0 +1,78 @@
+---
+title: "Impact of variations on the artificial doublet generation"
+author: "Pierre-Luc Germain"
+date: "5/17/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scDblFinder)
+  library(PRROC)
+  library(BiocParallel)
+})
+source("../misc.R")
+cpus <- 1
+```
+
+We load the datasets:
+
+```{r}
+lf <- list.files("../benchmark/datasets/", pattern="rds$", full=TRUE)
+names(lf) <- gsub("\\.rds$","", basename(lf))
+ll <- lapply(lf, FUN=function(x){
+  x <- readRDS(x)
+  sce <- SingleCellExperiment(list(counts=x[[1]]))
+  sce$truth <- x[[2]]
+  sce
+})
+```
+
+We can pre-process only once to speed-up, since the variations compared are downstream:
+
+```{r}
+ll <- lapply(ll, FUN=function(sce){
+  sce <- scDblFinder:::.prepSCE(sce, ndims=20)
+  set.seed(42)
+  sce$cluster <- fastcluster(sce)
+  sce
+})
+```
+
+
+```{r, cache=TRUE}
+res <- runParams(ll, list(halfSize=c(0,0.25), adjustSize=c(0,0.25), resamp=c(0,0.25)), BPPARAM=cpus)
+saveRDS(res, file="optims_doubletGeneration2.rds")
+res2 <- readRDS("optims_doubletGeneration2.rds")
+ggplot(res2, aes(factor(resamp), AUPRC.diff)) + geom_violin() + facet_grid(halfSize~adjustSize)
+
+eg <- data.frame(row.names=c("sum","mean","mixA","mixB","mixC","fullResamp","mixNoResamp"),
+                 halfSize=c(0,1,0.25,0,0,0,0.25),
+                 resamp=c(0,0,0.25,0.25,0.15,1,0),
+                 adjustSize=c(0,0,0.25,0.25,0,0,0) )
+pnames <- setNames(row.names(eg),apply(eg,1,collapse="|",paste))
+eg <- cbind(seeds=rep(c(1234, 42),nrow(eg)), eg[rep(1:nrow(eg),each=2),])
+res <- runParams(ll, list(), eg2=eg, BPPARAM=cpus)
+res$method <- pnames[paste(res$halfSize,res$resamp,res$adjustSize,sep="|")]
+saveRDS(res, file="optims_doubletGeneration3.rds")
+res <- readRDS("optims_doubletGeneration3.rds")
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(res, aes(AUPRC.diff, method)) + geom_violin() + geom_boxplot(width=0.1)
+```
+```{r}
+res <- res[res$method!="mixC",]
+saveRDS(res, "optims_doubletGeneration.rds")
+```
+
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
