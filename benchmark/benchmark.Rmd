@@ -10,6 +10,19 @@ suppressPackageStartupMessages({
   library(DoubletCollection)
   library(scDblFinder)
 })
+
+chordWrapper <- function(x, overkill=TRUE, ...){
+  library(Chord)
+  if(is.list(x)) x <- x[[1]]
+  dbr <- (0.01 * ncol(x)/1000)
+  se <- Seurat::CreateSeuratObject(counts=x)
+  chord(seu=se, doubletrate=dbr, overkill=TRUE, outname="tmp_chord", ...)
+  cs <- read.csv("tmp_chordreal_score.csv", row.names=1)
+  unlink("tmp_chord.csv")
+  unlink("tmp_chordreal_score.csv")
+  cs$chord
+}
+
 ```
 
 
@@ -33,6 +46,7 @@ scores <- lapply(datasets, FUN=function(x){
       "directDblClassification"=directDblClassification(x),
       "computeDoubletDensity"=computeDoubletDensity(x),
       "DoubletDetection"=DoubletCollection:::CallDoubletDetection(x),
+      "Chord"=chordWrapper(x),
       DoubletCollection:::Callscds(count=x, method=method)
     ))
     list(scores=sco, time=st)

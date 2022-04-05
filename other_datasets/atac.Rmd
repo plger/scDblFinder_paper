@@ -13,11 +13,9 @@ suppressPackageStartupMessages({
   library(SingleCellExperiment)
 })
 sce <- readRDS("GSE162690.SCE.rds")
-sce <- scDblFinder(sce, clusters=TRUE)
-sce$scDblFinder.raw <- sce$scDblFinder.score
+sce$amulet.prob <- 1-amulet(counts(sce), correction.method = "none")
 sce <- scDblFinder(sce, clusters=TRUE, aggregateFeatures=TRUE, nfeatures=25, 
                    processing="normFeatures")
-
 CD <- colData(sce)
 saveRDS(CD, file="atac.colData.rds")
 ```

@@ -24,7 +24,8 @@
 #' @export
 plotROCs <- function(scores, truth, fdr=FALSE, th=c(), showLegend=TRUE,
                      prop.wrong.neg=0, prop.wrong.pos=0,
-                     printAUC=is.vector(scores) || length(scores)==1, ...){
+                     printAUC=is.vector(scores) || length(scores)==1,
+                     addNull=FALSE, ...){
   truth <- as.integer(as.factor(truth))-1
   scores <- as.data.frame(scores)
   roclist <- lapply(scores, FUN=function(x){
@@ -50,7 +51,10 @@ plotROCs <- function(scores, truth, fdr=FALSE, th=c(), showLegend=TRUE,
   pretop <- function(x,y){ x[x>y] <- y; x/y }
   if(fdr){
     p <- ggplot(d, aes(FDR, TPR)) + geom_path(size=1.2, aes(colour=method))
-    auc <- DescTools::AUC(pretop(d$TPR,1-prop.wrong.pos), 1-psub(d$FDR,prop.wrong.neg))
+    auc <- DescTools::AUC(pretop(d$TPR,1-prop.wrong.pos), 1-psub(d$FDR,prop.wrong.neg),
+                          from=0, to=0)
+    if(addNull) p <- p + geom_vline(xintercept=1-(sum(truth)/length(truth)),
+                                    linetype="dotted", colour="red")
   }else{
     if(prop.wrong.neg>0){
       p <- ggplot(d, aes(adjusted.FPR, TPR)) + geom_line(size=1.2, aes(colour=method))
@@ -59,7 +63,8 @@ plotROCs <- function(scores, truth, fdr=FALSE, th=c(), showLegend=TRUE,
       p <- ggplot(d, aes(FPR, TPR)) + geom_line(size=1.2, aes(colour=method))
       x <- psub(d$FPR,prop.wrong.neg)
     }
-    auc <- DescTools::AUC(x, pretop(d$TPR,1-prop.wrong.pos))
+    auc <- DescTools::AUC(x, pretop(d$TPR,1-prop.wrong.pos), from=0, to=0)
+    if(addNull) p <- p + geom_abline(slope=1, linetype="dashed", colour="red")
   }
   dummy <- data.frame(FDR=1,FPR=1,TPR=1,adjusted.FPR=1)
   p <- p + scale_x_continuous(limits=c(0,1), expand=c(-0.01,0.01)) +
@@ -145,6 +150,8 @@ simDblCounts <- function( ncells=c(1500,200,1000,500,300,800),
 #' @param ll Named list of datasets (in SCE format, with a 'truth' colData
 #' column)
 #' @param params Named list of lists, containing alternative parameter values
+#' @param eg2 Optional parameter combination table, used to avoid testing all
+#' combinations
 #' @param seeds integer vector of random seeds
 #' @param BPPARAM Optional BiocParallel param for multithreading
 #' @param use.precomputed.clusters Logical; whether to use pre-computed
@@ -157,15 +164,19 @@ runParams <- function(ll, params=list(
       includePCs=list(1:3, c()),
       max_depth=list(5),
       propRandom=list(0)
-    ),
+    ), eg2=NULL,
     seeds=c(1234, 42), BPPARAM=NULL, use.precomputed.clusters=TRUE,
     FN=scDblFinder){
   library(BiocParallel)
-  eg <- expand.grid( c(list(seeds=seeds), params) )
-  eg2 <- as.data.frame(lapply(as.data.frame(eg), FUN=function(x){
-    if(is.list(x)) x <- sapply(x, FUN=toString)
-    x
-  }))
+  if(is.null(eg2)){
+    eg <- expand.grid( c(list(seeds=seeds), params) )
+    eg2 <- as.data.frame(lapply(as.data.frame(eg), FUN=function(x){
+      if(is.list(x)) x <- sapply(x, FUN=toString)
+      x
+    }))
+  }else{
+    eg <- eg2
+  }
   message("Running ", nrow(eg), " combinations on ", length(ll), " datasets.")
   if(is.null(BPPARAM)) BPPARAM <- SerialParam()
   if(is.numeric(BPPARAM)) BPPARAM <- MulticoreParam(min(nrow(eg),BPPARAM))
