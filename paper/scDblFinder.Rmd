@@ -154,9 +154,9 @@ p2 <- ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed
   labs(x="Expected proportion (based on median cell type library size)",
        y="Estimated proportion", size="Library size")
 
-pdf("Figure3.pdf", width=9, height=8)
-plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
-dev.off()
+# pdf("Figure1.pdf", width=9, height=8)
+# plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
+# dev.off()
 plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
 ```
 
@@ -253,9 +253,9 @@ p2 <- ggplot(ag, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") 
         axis.text.x=element_text(angle=90), panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank(), panel.grid.major.x=element_line(colour="lightgrey"))
 
-pdf("Figure4.pdf", width=9, height=4.6)
-plot_grid(p2,p1,align="h", rel_widths=c(1,7))
-dev.off()
+# pdf("Figure3.pdf", width=9, height=4.6)
+# plot_grid(p2,p1,align="h", rel_widths=c(1,7))
+# dev.off()
 
 plot_grid(p2,p1,align="h", rel_widths=c(1,7))
 ```
@@ -299,12 +299,12 @@ p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRU
                showLegend=FALSE) + scale_color_manual(values=c("score"="darkviolet")) +
   geom_point(data=d, aes(x,y), size=3.5)
 
-pdf("Figure5.pdf", width=9, height=4)
-plot_grid(dblTypesScheme(), 
-          p2 + theme(legend.position="none"), 
-          scale=0.95, labels="AUTO")
-
-dev.off()
+# pdf("Figure4.pdf", width=9, height=4)
+# plot_grid(dblTypesScheme(), 
+#           p2 + theme(legend.position="none"), 
+#           scale=0.95, labels="AUTO")
+# 
+# dev.off()
 
 plot_grid(dblTypesScheme(), 
           p2 + theme(legend.position="none"), 
@@ -518,9 +518,9 @@ p4 <- grid.grabExpr(draw(p4, merge_legends=FALSE,
 p <- plot_grid(plot_grid(p1, p3, nrow=1, labels="AUTO", scale=0.9), p4,
                nrow=2, labels=c(NA,"C"), rel_heights=c(3,2), scale=c(1,0.9))
 
-pdf("Figure6.pdf", width=9, height=7)
-p
-dev.off()
+# pdf("Figure5.pdf", width=9, height=7)
+# p
+# dev.off()
 p
 ```
 
@@ -540,9 +540,9 @@ p <- ggplot(res2, aes(dataset, value, fill=method)) +
   geom_col(position="dodge") + facet_wrap(~variable) +
   labs(x="Dataset", y="") + coord_flip() + 
   theme(legend.position="bottom")
-pdf("Figure7.pdf", width=8, height=4)
-p
-dev.off()
+# pdf("Figure6.pdf", width=8, height=4)
+# p
+# dev.off()
 p
 ```
 
@@ -593,9 +593,9 @@ s2$metric <- rep(c("AUROC","AUPRC"), each=nrow(stats))
 s2$value <- c(stats$AUROC, stats$AUPRC)
 p <- ggplot(s2, aes(method, value, fill=metric)) + geom_col(position=position_dodge()) + facet_wrap(~Dataset) + coord_flip()
 
-pdf("Figure8.pdf", width=7, height=3.5)
-p
-dev.off()
+# pdf("Figure7.pdf", width=7, height=3.5)
+# p
+# dev.off()
 p
 ```
 
@@ -688,9 +688,9 @@ p <- plot_grid(p1,
     nrow=1, rel_widths=c(3,3,1), scale=0.95, labels=c("C","D","")),
   nrow=2, rel_heights=c(2.1,3))
 
-pdf("Figure9.pdf", width=8, height=6)
-p
-dev.off()
+# pdf("Figure8.pdf", width=8, height=6)
+# p
+# dev.off()
 p
 ```
 
