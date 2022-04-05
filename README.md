@@ -2,7 +2,7 @@
 
 # scDblFinder paper
 
-This is the code & data behind the scDblFinder paper.
+This is the code & data behind the [scDblFinder paper](https://f1000research.com/articles/10-979/v1).
 
 For the `scDblFinder` package itself, visit the package's [github page](https://github.com/plger/scDblFinder) or 
 [Bioconductor vignette](https://bioconductor.org/packages/release/bioc/vignettes/scDblFinder/inst/doc/scDblFinder.html).
