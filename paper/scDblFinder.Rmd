@@ -5,6 +5,7 @@ author:
     affiliation: DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics
   - name: Aaron Lun
     affiliation: Genentech Inc., South San Francisco, CA USA
+  - name: Carlos Garcia Meixide
   - name: Will Macnair
     affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
   - name: Mark D. Robinson
@@ -875,6 +876,7 @@ Data are available under the terms of the Creative Commons BY 4.0 license.
 
 PLG developed the scDblFinder method and performed the analyses, and wrote the paper with feedback from all authors.
 AL contributed alternatives methods to the package and provided support.
+CGM investigated improvements to the Amulet strategy.
 WCM provided general feedback and testing, and helped with the design of the enrichment tests.
 MDR supervised and funded the project.
 
