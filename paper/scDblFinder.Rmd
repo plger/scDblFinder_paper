@@ -5,14 +5,13 @@ author:
   affiliation: DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics
 - name: Aaron Lun
   affiliation: Genentech Inc., South San Francisco, CA USA
-- name: Will C. Macnair
+- name: Will Macnair
   affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
 - name: Mark D. Robinson
   affiliation: DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics
 output:
-  bookdown::html_document2:
-    code_folding: hide
-    number_sections: false
+  bookdown::pdf_book:
+    keep_tex: true
 bibliography: "`r rbbt::bbt_write_bib('biblio.json', overwrite = TRUE)`"
 ---
 
@@ -103,7 +102,7 @@ As most approaches rely on some comparison of real droplets to artificial double
 Although often larger, the median library sizes of  doublets were systematically smaller than the sum of the median library sizes of composing cell types (Figure \@ref(fig:realDbls)A).
 We next investigated the relative contributions of the composing cell types using non-negative least square regression, expecting the larger cell types to contribute more to the doublet's transcriptome.
 
-```{r realDbls, fig.width=9, fig.height=8, fig.cap="**Characterization of real doublets. A:** Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. The dashed line indicates the diagonal. **B:** Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome. The dashed line indicates the diagonal, and the thick line indicates the weighted mean per doublet type."}
+```{r realDbls, fig.width=9, fig.height=8, fig.cap="**Characterization of real doublets in a mixture of three human lung adenocarcinoma cell lines. A:** Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. The dashed line indicates the diagonal. **B:** Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome. The dashed line indicates the diagonal, and the thick line indicates the weighted mean per doublet type."}
 # real doublet sizes compared to expected sizes
 sce <- readRDS("../other_datasets/mixology10x5cl.SCE.rds")
 md <- colData(sce)
@@ -174,9 +173,10 @@ All other things being equal, this strategy did not lead to a clear overall impr
 
 ## scDblFinder outperforms alternative methods
 
-```{r strategy, out.width="70%", fig.align="center", fig.cap="**Overview of the scDblFinder method.**"}
-knitr::include_graphics("strategy2.svg")
-```
+\begin{figure}
+{\centering \includegraphics[width=0.7\linewidth]{strategy2.pdf} }
+\caption{**Overview of the scDblFinder method.**}\label{fig:strategy}
+\end{figure}
 
 Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method (see [Methods] for details).
 Briefly, after some initial processing, artificial doublets (either random or inter-cluster, depending on the settings) are generated, then a nearest neighbor network is generated.
@@ -259,6 +259,7 @@ p2 <- ggplot(ag, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") 
 
 plot_grid(p2,p1,align="h", rel_widths=c(1,7))
 ```
+
 ### kNN-based summarization improves upon direct classification
 
 `scDblFinder` significantly outperforms another method based on a boosted classifier trained on artificial doublets, namely the `bcds` method implemented in the `scds` package [@baisScdsComputationalAnnotation2020].
@@ -752,7 +753,7 @@ deviation_t = \begin{cases}
 \end{cases}
 $$
 
-where $o_t$ represents the number of real droplets classified as doublets at threshold $t$, and $e_{low}$ and $e_{high}$ represent, respectively, the lower and higher bounds of the expected number of heterotypic doublets in the dataset (based on the given or estimated doublet rate \pm the `dbr.sd` parameter).
+where $o_t$ represents the number of real droplets classified as doublets at threshold $t$, and $e_{low}$ and $e_{high}$ represent, respectively, the lower and higher bounds of the expected number of heterotypic doublets in the dataset (based on the given or estimated doublet rate $\pm$ the `dbr.sd` parameter).
 The default value of the `dbr.sd` parameter was roughly estimated from the variability of observed doublet rates (`r suppFig(nb=4)`B). 
 The cost function being minimized is then simply given by $cost_t = FNR_t + FPR_t + deviation_t^2$, where the false negative rate ($FNR_t$) represents the proportion of artificial doublets misclassified as singlets at threshold $t$, and the false positive rate ($FPR_t$) represents the proportion of real droplets classified as doublets. This is illustrated in `r suppFig(nb=4)`A.
 
@@ -771,7 +772,7 @@ $$
 where $observed_i$ and $e_i$ represent the numbers of doublets formed by specific combination $i$ of clusters which are respectively observed or expected from random combinations, and $a_i$, $b_i$ and $c_i$ (etc) indicate whether or not (0/1) the doublet involves each cluster.
 
 Because some doublets are easier to identify than others, some deviation from their expected abundance is typically observed.
-For this reason, a $\text{difficulty}_i$ term is optionally included, indicating the difficulty in identifying doublets of origin $i$, estimated from the misclassification of `scDblFinder`'s artificial doublets of that origin (by default, the term is included if at least 7 clusters).
+For this reason, a $\text{difficulty}_i$ term is optionally included, indicating the difficulty in identifying doublets of origin $i$, estimated from the misclassification of `scDblFinder`'s artificial doublets of that origin (by default, the term is included if at least 7 clusters are present).
 A $\beta_a$ significantly different from zero, then, indicates that cluster _a_ forms more or less doublets than expected -- if positive, it indicates cluster `stickiness'.
 
 For the (quasi-)binomial distributions, logit was used instead of log transformation, and the mean of observed and expected counts was used as observational weights.
@@ -781,10 +782,10 @@ For the (quasi-)binomial distributions, logit was used instead of log transforma
 To account for the different identification difficulty across doublet types, we first fit the following global negative binomial model: 
 
 $$
-\log(observed_i) = \alpha + \log(e_i) + \beta \cdot \log(difficulty_i),
+\log(observed_i) = \alpha + \log(expected_i) + \beta \cdot \log(difficulty_i),
 $$
-
-Then, the fitted values are then considered the expected abundance, and the probability of each double type count given this expectation is calculated using either underlying distributions (for the negative binomial, the global over-dispersion parameter calculated in the first step is used).
+where $\text{observed}_i$ and $\text{expected}_i$ are respectively the observed and theoretically expected number of doublets of type $i$, and the $\text{difficulty}_i$ term is the same as for the stickiness problem above. 
+Then, the fitted values are then considered the expected abundance, and a p-value for each doublet type is given by the probability of the observed count under this adjusted expected value, using either distribution (for the negative binomial, the global over-dispersion parameter calculated in the first step is used).
 
 ## Direct classification
 

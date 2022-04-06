@@ -90,7 +90,7 @@ plot_grid(
 
 ### `r getFigNb()`
 
-**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method.
+**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method. In **A-B**, the violins represent the distribution (as well as mean and standard error) of differences to the median (across method) AUPRC for the dataset (higher is better). 
 
 
 
@@ -112,7 +112,7 @@ colnames(tmp) <- paste0(colnames(tmp),".diff")
 res <- cbind(res, tmp)
 plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() +
   vp(res, aes(processing, AUROC.diff), fill="lightgrey") + xlab("") + coord_flip(),
-  vp(res, aes(processing, elapsed), fill="lightgrey") + ylab("Running time (s)"),
+  vp(res, aes(processing, elapsed), fill="lightgrey") + ylab("Running time (s)") + scale_y_log10(),
   labels="AUTO", nrow=2, rel_heights=c(4,3))
 ```
 
