@@ -1,17 +1,18 @@
 ---
 title: "Doublet identification in single-cell sequencing data using scDblFinder"
 author: 
-- name: Pierre-Luc Germain
-  affiliation: DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics
-- name: Aaron Lun
-  affiliation: Genentech Inc., South San Francisco, CA USA
-- name: Will Macnair
-  affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
-- name: Mark D. Robinson
-  affiliation: DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics
+  - name: Pierre-Luc Germain
+    affiliation: DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics
+  - name: Aaron Lun
+    affiliation: Genentech Inc., South San Francisco, CA USA
+  - name: Will Macnair
+    affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
+  - name: Mark D. Robinson
+    affiliation: DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics
 output:
-  bookdown::pdf_book:
-    keep_tex: true
+  bookdown::html_document2:
+    code_folding: hide
+    number_sections: false
 bibliography: "`r rbbt::bbt_write_bib('biblio.json', overwrite = TRUE)`"
 ---
 
@@ -173,10 +174,9 @@ All other things being equal, this strategy did not lead to a clear overall impr
 
 ## scDblFinder outperforms alternative methods
 
-\begin{figure}
-{\centering \includegraphics[width=0.7\linewidth]{strategy2.pdf} }
-\caption{**Overview of the scDblFinder method.**}\label{fig:strategy}
-\end{figure}
+```{r strategy, out.width="70%", fig.align="center", fig.cap="**Overview of the scDblFinder method.**"}
+knitr::include_graphics("strategy2.svg")
+```
 
 Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method (see [Methods] for details).
 Briefly, after some initial processing, artificial doublets (either random or inter-cluster, depending on the settings) are generated, then a nearest neighbor network is generated.
