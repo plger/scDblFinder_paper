@@ -1,0 +1,590 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Welcome to Overleaf --- just edit your article on the left,
+% and we'll compile it for you on the right. If you give 
+% someone the link to this page, they can edit at the same
+% time. See the help menu above for more info. Enjoy!
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% For more detailed article preparation guidelines, please see:
+% http://f1000research.com/author-guidelines
+
+\documentclass[10pt,a4paper,twocolumn]{article}
+\usepackage{f1000_styles}
+
+%% Default: numerical citations
+\usepackage[numbers]{natbib}
+
+%% Uncomment this lines for superscript citations instead
+% \usepackage[super]{natbib}
+
+%% Uncomment these lines for author-year citations instead
+% \usepackage[round]{natbib}
+% \let\cite\citep
+
+\begin{document}
+
+\title{Doublet identification in single-cell sequencing data using \textit{scDblFinder}}
+\author[1]{Pierre-Luc Germain}
+\author[2]{Aaron Lun}
+\author[3]{Will Macnair}
+\author[4]{Mark D. Robinson}
+\affil[1]{DMLS Lab of Statistical Bioinformatics, UZH; D-HEST Institute for Neuroscience, ETH; Swiss Institute of Bioinformatics}
+\affil[2]{Genentech Inc., South San Francisco, CA USA}
+\affil[3]{F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel}
+\affil[4]{DMLS Lab of Statistical Bioinformatics, UZH; Swiss Institute of Bioinformatics}
+
+\maketitle
+\thispagestyle{fancy}
+
+% Please list all authors that played a significant role in the research involved in the article. Please provide full affiliation information (including full institutional address, ZIP code and e-mail address) for all authors, and identify who is/are the corresponding author(s).
+
+\begin{abstract}
+
+Doublets are prevalent in single-cell sequencing data and can lead to artifactual findings.
+A number of strategies have therefore been proposed to detect them.
+Building on the strengths of existing approaches, we developed \texttt{scDblFinder},
+a fast, flexible and accurate Bioconductor-based doublet detection method.
+Here we present the method, justify its design choices, demonstrate its performance on both single-cell RNA and
+accessibility sequencing data, and provide some observations on doublet formation, detection, and enrichment analysis.
+Even in complex datsets, \texttt{scDblFinder} can accurately identify most heterotypic doublets,
+and was already found by an independent benchmark to outcompete alternatives.
+
+
+\end{abstract}
+
+\section*{Keywords}
+
+Single-cell sequencing, doublets, multiplets, filtering
+
+\clearpage
+
+\section*{Introduction}
+
+
+High-throughput single-cell sequencing, in particular single-cell/nucleus RNA-sequencing (scRNAseq), has provided an unprecedented resolution on biological phenomena.
+A particularly popular approach uses oil droplets or wells to isolate single cells along with barcoded beads.
+Depending on the cell density loaded, a proportion of reaction volumes (i.e.~droplets or wells) will capture more than one cell, forming `doublets' (or `multiplets'), i.e.~two or more cells captured by a single reaction volume and thus sequenced as a single-cell artifact.
+The proportion of doublets has been shown to be proportional to the number of cells captured (Bloom 2018; Kang et al. 2018).
+It is therefore at present common in single-cell experiments to have 10-20\% doublets, making accurate doublet detection critical.
+
+To avoid confusion, we will denote as `droplet' the reads that are assigned to one barcode (either doublet or singlet), and reserve the term `cells' to talk about original (singlet) cells. `Homotypic' doublets, which are formed by cells of the same type (i.e.~similar transcriptional state), are very difficult to identify on the basis of their transcriptome alone (McGinnis, Murrow, and Gartner 2019). They are also, however, relatively innocuous for most purposes, as they appear highly similar to singlets.
+`Heterotypic' doublets (formed by cells of distinct transcriptional states), instead, can appear as an artifactual novel cell type and disrupt downstream analyses (Germain, Sonrel, and Robinson 2020).
+
+Experimental methods have been devised for detecting doublets in multiplexed samples, using barcodes (Stoeckius et al. 2018) or genotypes (e.g.~single-nucleotide polymorphisms) to identify droplets containing material from more than one sample (Kang et al. 2018).
+While evidently useful, these often incur additional costs or limitations.
+Furthermore, they identify only a fraction of the doublets, and fail to detect doublets formed by cells from the same sample, including heterotypic doublets.
+The proportion of doublets missed will decrease with the degree of multiplexing, but even mixing 10 samples would result in 10\% of the doublets missed; moreover, these approaches are not always applicable.
+
+A number of computational approaches have therefore been developed to identify doublets on the basis of their transcriptional profile (McGinnis, Murrow, and Gartner 2019; DePasquale et al. 2019; Wolock, Lopez, and Klein 2019; Bais and Kostka 2020; Bernstein et al. 2020).
+Most of these approaches rely on the generation of artificial doublets by summing or averaging reads from real droplets, and score the similarity between them and the real droplets.
+For example, \texttt{DoubletFinder} generates a \emph{k}-nearest neighbor (kNN) graph on the union of real droplets and artificial doublets, and estimates the density of artificial doublets in the neighborhood of each droplet (McGinnis, Murrow, and Gartner 2019).
+In a similar fashion, one of the methods proposed by Bais and Kostka (2020), \texttt{bcds}, generates artificial doublets and trains a classifier to distinguish them from real droplets.
+Droplets that are classified with artificial doublets are then called as doublets.
+Finally, another strategy proposed by Bais and Kostka (2020) is a coexpression score, \texttt{cxds}, which flags droplets that co-express a number of genes that otherwise tend to be mutually exclusive.
+
+Xi and Li (2021a) recently reported a benchmark of computational doublet detection methods, using both simulations and real datasets with genotype-based true doublets.
+Interestingly, despite several new publications, the initial benchmark identified the oldest method, \texttt{DoubletFinder} (McGinnis, Murrow, and Gartner 2019).
+However, another important observation from the benchmark was that no single method was systematically the best across all datasets, highlighting the necessity to test and benchmark methods across a variety of datasets, and suggesting that some strategies might have advantages and disadvantages across situations.
+
+Here, we present the \emph{\href{https://bioconductor.org/packages/3.13/scDblFinder}{scDblFinder}} package, building on the extensive single-cell \texttt{Bioconductor} methods and infrastructures (Amezquita et al. 2019) and implementing a number of doublet detection approaches.
+In particular, the \texttt{scDblFinder} method integrates insights from previous approaches and novel improvements to generate fast, flexible and robust doublet prediction. \texttt{scDblFinder} was independently tested by Xi and Li in the protocol extension to their initial benchmark and was found to have the best overall performance (Xi and Li 2021b).
+
+
+\section*{Results}
+
+\subsection*{Characterization of real doublets}
+
+As most approaches rely on some comparison of real droplets to artificial doublets, it is crucial to appropriately simulate doublets. To this end, we first characterized real doublets using a dataset of genetically distinct cell lines (Tian et al. 2018). Because each cell line represents a distinct and more or less homogeneous transcriptional state, it is possible to identify the `cell types' composing each doublet (Figure \ref{fig:realDbls}).
+Although often larger, the median library sizes of doublets were systematically smaller than the sum of the median library sizes of composing cell types (Figure \ref{fig:realDbls}A).
+We next investigated the relative contributions of the composing cell types using non-negative least square regression, expecting the larger cell types to contribute more to the doublet's transcriptome.
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/realDbls-1.pdf}
+\caption{\label{fig:realDbls}\textbf{Characterization of real doublets in a mixture of three human lung adenocarcinoma cell lines. A:} Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. The dashed line indicates the diagonal. \textbf{B:} Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome. The dashed line indicates the diagonal, and the thick line indicates the weighted mean per doublet type.}
+\end{figure}
+
+
+Although differences in median library size across cell types were small (less than two-fold) compared to other datasets, we observed a weak association of the relative contributions with the relative sizes of the composing cell types (Figure \ref{fig:realDbls}B, p\textasciitilde2e-10).
+This effect was however considerably smaller than the variation within doublet type.
+This suggests that there are
+i) large variations in real cell size within a given cell type, and/or
+ii) large variations in the mRNA sampling efficiency that are independent for the two composing cells.
+In light of these ambiguities, we opted for a mixed strategy in the generation of artificial doublets:
+a proportion is generated by summing the libraries of individual cells,
+another by performing a poisson resampling of the obtained counts,
+and a third by re-weighting the contributions of cells depending on the relative median sizes of the composing cell types.
+
+All other things being equal, this strategy did not lead to a clear overall improvement across the datasets (Extended Data - Figure 1A) over the simple sum (both of which were clearly superior to averaging), suggesting that most of the difference is anyway within the wide variability in library sizes, and/or that the normalization and dimensionality reduction steps are sufficient to remove remaining differences between real and artificial doublets. Another possible interpretation is that doublets can be approximated as the sum of the counts of the composing cells, but that doublets composed of larger cells are less likely to form. Either way, we nevertheless maintained the mixed doublet generation strategy by default for a small subset of doublets, as it was not deleterious and might prove more robust to variations between protocols.
+
+
+
+\subsection{scDblFinder outperforms alternative methods}
+
+\begin{figure}
+{\centering \includegraphics[width=0.7\linewidth]{strategy2.pdf} }
+\caption{**Overview of the scDblFinder method.**}\label{fig:strategy}
+\end{figure}
+
+Figure \ref{fig:strategy} gives an overview of the \texttt{scDblFinder} method (see \protect\hyperlink{methods}{Methods} for details).
+Briefly, after some initial processing, artificial doublets (either random or inter-cluster, depending on the settings) are generated, then a nearest neighbor network is generated.
+Various characteristics from each cell/doublet and its neighborhood (such as the density of artificial doublets in the neighborhood) are then gathered to build a cell-level predictors matrix.
+On the basis of these predictors, a classifier is trained to distinguish artificial doublets from droplets.
+A key problem with classifier-based approaches is that some of the droplets are mislabeled, in the sense that they are in fact doublets labeled as singlets.
+These can mislead the classifier. For this reason, classification and thresholding are performed in an iterative fashion:
+at each round, the droplets identified as doublets are removed from the training data for the next round.
+We found that 2-3 iterations provided the best performance (Extended Data - Figure 1B).
+
+A previous version of \texttt{scDblFinder} was already compared, and shown superior to existing alternatives, in an independent benchmark Xi and Li (2021a).
+Here we reproduced this benchmark using the most recent versions of the packages, and including variant methods from the \texttt{scDblFinder} package (among which the updated version of \emph{\href{https://bioconductor.org/packages/3.13/scran}{scran}}'s original method, and now available in the \texttt{scDblFinder} package as \texttt{computeDoubletDensity}). In addition, we included the new method \texttt{Chord} (Xiong et al. 2021), which also combines different strategies.
+
+Figure \ref{fig:benchmark1} compares the performance of \texttt{scDblFinder} to alternatives across the real benchmark datasets.
+\texttt{scDblFinder} has the highest mean area under the precision-recall (PR) curve (see Extended Data - Figure 1C), ranking first in a majority of datasets, and otherwise typically very close to the top.
+In addition, \texttt{scDblFinder} runs at a fraction of the time required by the next best methods (Figure \ref{fig:benchmark1}, left).
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/benchmark1-1.pdf}
+\caption{\label{fig:benchmark1}\textbf{Benchmark.} Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods in bold are available through the scDblFinder package.}
+\end{figure}
+
+
+\subsubsection{kNN-based summarization improves upon direct classification}
+
+\texttt{scDblFinder} significantly outperforms another method based on a boosted classifier trained on artificial doublets, namely the \texttt{bcds} method implemented in the \texttt{scds} package (Bais and Kostka 2020).
+We hypothesized that this improvement would come from two main sources.
+First, a risk of classifier-based approaches is that the exact classification problem on which they are trained, namely distinguishing \emph{artificial} doublets from \emph{real} droplets, slightly differs from the real problem on which they are expected to function (distinguishing \emph{real} doublets from \emph{real} singlets).
+Indeed, artificial doublet creation can only approximate real doublets, and because \texttt{scds} trains directly on the expression matrix, where differences between real and artificial doublets are likely to be more apparent than in the highly summarized set of features used by \texttt{scDblFinder}, we hypothesized that this can lead to overfitting on the artificial problem.
+Second, another improvement of \texttt{scDblFinder} is the iterative training, which prevents doublets in the real droplets (which are wrongly annotated as singlets) from misleading the classifier.
+The observed impact of the iterative procedure suggests that it explains only part of the difference in performance Extended Data - Figure 1B. We therefore tested the hypothesis of overfitting by developing a version of \texttt{scDblFinder} without the dimensional reduction and kNN steps, and trained the classifier directly on the expression of the selected genes.
+This resulted in a reduction in area under the precision and recall curve (AUPRC) in real datasets (see \protect\hyperlink{direct-classification}{Direct classification}; see also Figure \ref{fig:benchmark1} and Extended Data - Figure 2).
+We therefore conclude that, while dimensional reduction and kNN summarization arguably involve a loss of information, it nevertheless increases accuracy (in addition to considerably reducing computing time), presumably by preventing overfitting.
+
+\subsection{Most heterotypic doublets are accurately identified}
+
+Several of the benchmark datasets have true doublets flagged by their mixing of single-nucleotide polymorphisms from multiple individuals (Kang et al. 2018).
+In most of these cases, however, the doublets include also inter-individual homotypic doublets (in the sense of being a combination of cells of the same type from different individuals), which are difficult to detect from gene expression (Figure \ref{fig:adjustedPR}A).
+In addition, they miss heterotypic doublets that are the result of the combination of different cell types from the same individual.
+Indeed, datasets where there is a full correspondence between cell type and individual (such as the human-mouse mixtures, e.g.~hm-6k and hm-12k) typically have a much higher area under the Receiver-operator characteristic (ROC) and precision-recall (PR) curves (Figure \ref{fig:benchmark1}).
+It is therefore likely that the accuracy reported in the benchmark is below the actual one in detecting heterotypic doublets.
+Based on the frequency of the different individuals and cell types in a dataset, it is possible to infer the expected rate of inter-individual homotypic doublets and within-individual heterotypic doublets.
+This, in turn, allows us to adjust the measured true positive rate (TPR) and false discovery rate and get a better picture of our ability to detect heterotypic doublets.
+Figure \ref{fig:adjustedPR}B shows such an analysis for a complex dataset from Kang et al. (2018) .
+The inflection point of the PR curve roughly coincides with the expected proportion of heterotypic doublets among those flagged as true doublets.
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/adjustedPR-1.pdf}
+\caption{\label{fig:adjustedPR}\textbf{Doublet types and real accuracy of heterotypic doublet identification. A:} Schematic (toy data) representing the different types of doublets. Within-genotype heterotypic doublets will wrongly be labeled as false positives, and inter-genotype homotypic will be labeled as false negatives. \textbf{B:} Adjusted PR curve for an example sample (GSM2560248). The two shaded areas represent the expected proportion of within-genotype heterotypic doublets (i.e.~wrongly labeled as singlets in the annotation used as ground truth) and inter-genotype homotypic doublets, respectively. The red dotted line indicates the random expectation, and the black dot indicates the threshold set by scDblFinder.}
+\end{figure}
+
+Adjusting for both types of `misannotation' (i.e.~homotypic doublet and missed intra-genotype doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that 87\% of heterotypic doublets can be identified with a real FDR of 32\% (a similar analysis for a different sample is shown in Extended Data - Figure 3).
+
+\subsection{Flexible thresholding for doublet calling}
+
+Most doublet detection methods provide a `doublet score' that is higher in doublets than in singlets,
+and users are left to decide on a threshold above which droplets will be excluded as doublets.
+Different methods have been suggested to this end.
+Building on the fairly tight relationship (especially in 10x-based datasets) between the number of cells captured and the rate of doublets generated (Kang et al. 2018), some have set thresholds based on the number of doublets (or heterotypic doublets) one expects to find in the data (McGinnis, Murrow, and Gartner 2019). Others have used the best tradeoff in misclassifying artificial doublets from real droplets (Wolock, Lopez, and Klein 2019).
+Because \texttt{scDblFinder}'s scores come from a classifier, they are analogous to this tradeoff, and can directly be interpreted as a probability (not adjusting, however, for the base rate of doublets).
+In most cases, we found the \texttt{scDblFinder} scores to change rapidly from high to low very close to the inflection point of the ROC curve (Figure \ref{fig:thresholding}A), indicating that a fixed threshold (e.g.~0.5) can often be used.
+In some cases, the scores are much more gradual, requiring a non-arbitrary way to set the thresholds.
+\texttt{scDblFinder} therefore includes a thresholding method that combines both of the aforementioned rationales, and attempts to minimize both the proportion of artificial doublets being misclassified and the deviation from the expected doublet rate (see \protect\hyperlink{thresholding}{Thresholding} and Extended Data - Figure 4A).
+
+Ideals defined by the ROC and PR curves, while not normally available in practice, can be used here to compare the different thresholding procedures.
+The ideal represented by the elbow of the ROC curve gives equal weight to the \emph{rate} of both types of errors; however, due to the lower frequency of doublets, in absolute terms this amounts to considering a missed doublet worse that a wrongly excluded singlet.
+Another ideal threshold can be defined from the PR curve, minimizing the distance to the corner defined by a perfect precision and recall.
+This second ideal gives a more balanced weight to cells misclassified in one fashion or the other.
+Figure \ref{fig:thresholding}B compares the different thresholding procedure with respect to their deviation from both of these ideals.
+The fixed score threshold and the scDblFinder combined threshold provide similar results, and are both clearly superior (with respect to both ideals) to thresholds based solely on the expected doublet rate.
+Figure \ref{fig:thresholding}C shows the TPR and FDR at each of the computed thresholds across datasets.
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/thresholding-1.pdf}
+\caption{\label{fig:thresholding}\textbf{Thresholding. A:} ROC curves (with square-root transformation on the x axis) of the different benchmark datasets, colored by scDblFinder doublet scores, showing a rapid flip of the scores around the inflexion point. The crosses indicate the scDblFinder thresholds. \textbf{B:} Deviation from two ideals of thresholds based on different methods. In the PR curve, the ideal is defined as the minimal distance from the corner indicating a perfect precision and recall. In the ROC curve, the ideal is defined as the maximal distance from the diagonal. The y-axis indicates the difference between the distance at the threshold and the respective optimal distance. \textbf{C:} Tradeoff between True Positive Rate (TPR/sensitivity/recall) and False Discovery Rate (FDR/1-precision) using different thresholds.}
+\end{figure}
+
+\subsection{Doublet detection across multiple samples/captures}
+
+Multiple samples are often profiled and analyzed together, with the very common risk of batch effects (either technical or biological) across samples (Lütge et al. 2021).
+Therefore, while the droplets from all samples might in principle provide more information for doublet detection than a single sample can afford on its own, this must be weighted against the risk of bias due to technical differences.
+To investigate this, we implemented different multi-sample approaches and tested them on two real multi-sample datasets with demuxlet-based true doublets, as well as a sub-sampling of them (Figure \ref{fig:multisample}).
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/multisample-1.pdf}
+\caption{\label{fig:multisample}\textbf{Comparison of four multi-sample strategies.} B1 and B2 the two batches from dataset GSE96583, and contain 3 and 2 captures, respectively. The datasets with the suffix `s' are versions downsampled to 30\%. Using doublet detection on each capture separately (full split) was generally comparable to treating the captures as one (and adjusting the doublet rate).}
+\end{figure}
+
+
+
+The different multi-sample strategies had only a minor impact on the accuracy of the identification.
+Based on these results, one could take the best overall strategy to be to process all samples as if they were one, however in our experience this can lead to biases against some samples when there are very large variations (e.g.~in number of cells or coverage) across samples (not shown).
+This approach also greatly increases running time.
+In contrast, running the samples fully separately is computationally highly efficient, and is often equally accurate.
+This being said, more multi-sample datasets with ground truth will be needed to establish the optional procedure.
+
+\hypertarget{scatacseq-aggregating-rather-than-selecting-features}{%
+\subsection{scATACseq: aggregating rather than selecting features}\label{scatacseq-aggregating-rather-than-selecting-features}}
+
+We next investigated whether \texttt{scDblFinder} could be applied to other types of single-cell data prone to doublets, such as single-cell ATACseq (scATACseQ). We compared scDblFinder to two methods specifically designed to scATACseq: the \texttt{ArchR} package (Granja et al. 2021), which implements a doublet detection method that is also based on the comparison to artificial doublets, and the \texttt{Amulet} method (Thibodeau et al. 2021). \texttt{Amulet} is based on the assumption that, in a diploid cell, any given genomic region should be captured at most twice, and therefore interprets a larger number of loci with more than two reads as indicative of the droplet being a doublet. Since it was only available in the form of a mixture of java and python scripts, we re-implemented the method in \texttt{scDblFinder}, leading to equal or superior results (Figure \ref{fig:scATAC}). Of note, the \texttt{Amulet} method has the advantage of capturing homotypic doublets, which instead tend to be missed by other methods.
+
+The methods were compared across three datasets with a genotype-based annotation (used as ground truth): two obtained from Granja et al. (2021), which by design do not have homotypic doublets, and the dataset published along \texttt{Amulet} (GSM5457171; Thibodeau et al. (2021)). The latter contains homotypic doublets, but its doublet annotation is highly incomplete: due to the low multiplexing, we expected to have approximately 35\% of the doublets mislabeled as singlets.
+
+With default parameters, \texttt{scDblFinder} performed very poorly (Figure \ref{fig:scATAC}).
+This is chiefly because \texttt{scDblFinder} follows the common scRNAseq strategy of selecting an informative subset of the features, while ATACseq reads are typically sparsely distributed across the genome.
+However, working with all features (i.e.~peaks) is computationally very expensive.
+An alternative to both approaches is to begin by reducing the size of the dataset by \emph{aggregating} correlated features into a relatively small set, thereby using information from all.
+These aggregated features can then directly be used as the space in which to calculate distances.
+This method yielded comparable performance to specialized single-cell ATACseq software (Figure \ref{fig:scATAC}).
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/scATAC-1.pdf}
+\caption{\label{fig:scATAC}\textbf{Doublet identification in three single-nucleus ATAC-seq datasets.} `amulet.py' and `amulet.R' respectively stand for the original and R reimplementation of the method. `scDblFinder.agg' stands for the feature aggregation approach. `combination' indicates a Fisher combination of the amulet.R p-value and the 1 minus the scDblFinder.agg score. For `ArchR,' the DoubletEnrichment output was used.}
+\end{figure}
+
+While of an elegant simplicity, the \texttt{Amulet} approach performed well only on one dataset (Figure \ref{fig:scATAC}). Of note, however, the authors indicate that larger library sizes are needed for the approach to perform well, which is not the case for most cells in these datasets. Another problem is that the number of loci with more than two reads is strongly dependent on library size (Extended Data - Figure 5), however this dependency cannot easily be taken into account because ATAC doublets also tend to have a larger library size, making the two variables confounded.
+
+These results show that the \texttt{scDblFinder} approach can be applied to scATACseq data, although more work and a broader set of benchmark datasets will be necessary to establish optimal methods. In the meantime, we recommend using more than one method: for example, a simple Fisher \emph{p}-value aggregation between the \texttt{Amulet} and \texttt{scDblFinder} (aggregation) methods provides a performance that is locally suboptimal but considerably more robust across datasets. Other approaches provide more complex ways of aggregating calls from different methods (Xiong et al. 2021; Neavin et al. 2022).
+
+
+\subsection{Doublet origins and enrichment analysis}
+
+When artificial doublets are generated between clusters, we can keep track of the clusters composing them, and we reasoned that this information could be used to infer the clusters composing real doublets (hereafter referred to as `doublet origin'). Using a simulation as well as the aforementioned real dataset with doublets of known origins (mixture of five cell lines from Tian et al. (2018)), we assessed the accuracy of doublet origin prediction based on the nearest artificial doublets in the kNN. These proved inaccurate, both in real and simulated data (see Extended Data - Figure 6A-B). Even training a classifier directly on this problem failed (see Extended Data - Figure 6C-D).
+The problem appears to be that, due to the very large variations in library sizes (and related variations in relative contributions of the composing cells -- see Figure \ref{fig:realDbls}B), doublets often contain a large fraction of reads from one cell type, and conversely a small fraction from the other cell type.
+As a consequence, we can typically call at least one of the two originating cell types, but seldom both.
+In the real dataset, at least one of the two originating cell type is correctly identified in 73\% of doublets (random expectation: 36\%), but both are correct in only 20\% of cases.
+
+While the identification of doublet origins remains a challenge, for the sake of completeness we nevertheless developed strategies to investigate whether certain doublet types were found more often than expected.
+Such enrichment could, for instance, indicate cell-to-cell interactions.
+We defined two forms of doublet enrichment (Figure \ref{fig:dblenr}A-B), and specified models to test each possibility:
+i) enrichment in doublets formed by a specific combination of celltypes, or
+ii) enrichment in doublets involving a given cell type, denoted `sticky.'
+
+The `stickiness' of each cluster (as proxy for cell types) can be evaluated by fitting a single generalized linear model on the observed abundance of doublets of each origin (see \protect\hyperlink{methods}{Methods}).
+We tested the performance of this test under different underlying distributions using simulated doublet counts.
+The number of doublets of each type is generated from random expectation with or without added stickiness (as factors of 1 to 3 on the probability) using negative binomial distributions with different over-dispersion parameters (Figure \ref{fig:dblenr}C and Extended Data - Figure 7).
+The quasi-binomial showed the best performance, followed by the negative binomial, but in all cases the p-values were not well calibrated and many false positives were reported at a nominal FDR\textless0.05.
+This was robust across different over-dispersion values (see Extended Data - Figure 7).
+
+\begin{figure}
+\centering
+\includegraphics{scDblFinder_files/figure-latex/dblenr-1.pdf}
+\caption{\label{fig:dblenr}\textbf{Doublet enrichment analysis. A-B:} Doublet enrichment in a toy example. \textbf{A:} Proportion of different doublet types from random expectations based on the cell type abundances. \textbf{B:} The fold-enrichment over this expectation in two different doublet enrichment scenarios. \textbf{C-D:} Performance of the cluster stickiness tests (C) and tests for enrichment of specific combinations (D) using different underlying distributions.}
+\end{figure}
+
+We next sought to establish a test for the enrichment of specific combinations.
+Here, we simply computed the probability of the observed counts for each combination using different models (see \protect\hyperlink{methods}{Methods}).
+We again tested this approach relying on different underlying distributions, on simulations with varying over-dispersion (Figure \ref{fig:dblenr}C).
+The negative binomial performed best, however all variants suffered a high false discovery rate.
+
+\section*{Methods}
+
+
+\subsection{scDblFinder implementation}
+
+As a first step, the dataset is reduced to its top most expressed features (1000 by default); if the cluster-based approach is used, the top features per cluster are instead selected.
+
+The generation of artificial doublets then depends on wether the clustered or random mode is used.
+If using the cluster-based approach (and not manually specifying the clusters), a fast clustering is performed (see \protect\hyperlink{fast-clustering}{Fast clustering}).
+Artificial doublets are then created by combining random droplets of different clusters, proportionally to the cluster sizes.
+In explicitly concentrating on inter-cluster doublets, we do not attempt to identify homotypic doublets, which are anyway virtually unidentifiable and relatively innocuous.
+In doing so, we reduce the necessary number of artificial doublets (since no artificial doublet is `lost' modeling homotypic doublets), and prevent the classifier from being trained to recognize doublets that are indistinguishable from singlets, which would lead to calling singlets as doublets.
+
+An alternative strategy also available in \texttt{scDblFinder} is to generate fully random artificial doublets, and use the iterative procedure (see below) to exclude unidentifiable artificial doublets from the training.
+In practice, the two approaches have comparable performances (Figure \ref{fig:benchmark1}), and they can also be combined.
+
+Dimension reduction is then performed on the union of real and artificial droplets, and a nearest neighbor network is generated.
+The network is then used to estimate a number of characteristics for each cell, in particular the proportion of artificial doublets among the nearest neighbors.
+Rather than selecting a specific neighborhood size, the ratio is calculated at different values of \emph{k}, creating multiple predictors that will be used by the classifier.
+A distance-weighted ratio is also included.
+Further cell-level predictors are added, including: projections on principal components; library size; and co-expression scores (based on a variation of Bais and Kostka 2020).
+\texttt{scDblFinder} then trains gradient boosted trees to distinguish, based on these features, artificial doublets from real cells.
+Finally, a thresholding procedure decides the score at which to call a droplet by simultaneously minimizing the misclassification rate and the expected doublet rate (see \protect\hyperlink{thresholding}{Thresholding}).
+
+\subsubsection{Parameter optimization}
+
+Using the benchmark datasets from Xi and Li (2021a), we next optimized a number of parameters in the procedure, notably regarding features to include and hyperparameters, so as to provide robust default parameters (see Extended Data - Figure 8-11).
+Some features, such as the distance to the nearest doublet or whether the nearest neighbor is an artificial doublet, had a negative impact on performance (see Extended Data - Figure 8), presumably because it led to over-fitting.
+Finally, in line with a discrepancy between the trained and real problems, we observed that the variable importance calculated during training (see Extended Data - Figure 9) did not necessarily match that of the variable drop experiments (see Extended Data - Figure 8).
+
+We finally optimized learning hyperparameters (see Extended Data - Figure 10) and further input parameters (see Extended Data - Figure 11).
+
+\subsubsection{Fast clustering}
+
+Irlba-based singular value decomposition is first run using the \emph{\href{https://bioconductor.org/packages/3.13/BiocSingular}{BiocSingular}} package, and a kNN network is generated using the Annoy approximation implemented in \emph{\href{https://bioconductor.org/packages/3.13/BiocNeighbors}{BiocNeighbors}}.
+Louvain clustering is then used on the graph.
+If the dataset is sufficiently large (\textgreater1000 cells), a first rapid k-means clustering is used to generate a large number of meta-cells, which are then clustered using the graph-based approach, propagating clusters back to the cells themselves.
+
+\subsubsection{Thresholding}
+
+Unless manually given, the expected number of doublets (\(e\)) is specified by \(e = n^2/10^-5\) (where \(n\) is the number of cells captured).
+This is then restricted to heterotypic doublets using random expectation from cluster sizes or, if not using the cluster-based approach, using the proportion of artificial doublets misidentified.
+The doublet rate is accompanied by an uncertainty interval (\texttt{dbr.sd} parameter), and the deviation from the expected doublet number for threshold \(t\) is then calculated as
+
+\[
+deviation_t = \begin{cases}
+  0 & 
+    \text{if } (o_t \geq e_{low} \land o_t \leq e_{high}) \\
+  2 \cdot \frac{
+  \min(|o_t-e_{low}|, |o_t-e_{high}|)
+}{e_{low} + e_{high}} & \text{otherwise}
+\end{cases}
+\]
+
+where \(o_t\) represents the number of real droplets classified as doublets at threshold \(t\), and \(e_{low}\) and \(e_{high}\) represent, respectively, the lower and higher bounds of the expected number of heterotypic doublets in the dataset (based on the given or estimated doublet rate \(\pm\) the \texttt{dbr.sd} parameter).
+The default value of the \texttt{dbr.sd} parameter was roughly estimated from the variability of observed doublet rates (Extended Data - Figure 4B).
+The cost function being minimized is then simply given by \(cost_t = FNR_t + FPR_t + deviation_t^2\), where the false negative rate (\(FNR_t\)) represents the proportion of artificial doublets misclassified as singlets at threshold \(t\), and the false positive rate (\(FPR_t\)) represents the proportion of real droplets classified as doublets. This is illustrated in Extended Data - Figure 4A.
+
+Since this is performed in an iterative fashion, the \(FPR\) is calculated ignoring droplets which were called as doublets in the previous round.
+
+\subsection{Doublet enrichment analysis}
+
+\subsubsection{Cluster stickiness}
+
+Cluster `stickiness' can be evaluated by fitting a single generalized linear model on the observed abundance of doublets of each origin, in the following way:
+
+\[
+\log(observed_i+0.1) = \log(e_i) + \beta_z \cdot \log(difficulty_i) +
+\beta_a a_i + \beta_b b_i + \beta_c c_i + ... +\epsilon_i ,
+\]
+where \(observed_i\) and \(e_i\) represent the numbers of doublets formed by specific combination \(i\) of clusters which are respectively observed or expected from random combinations, and \(a_i\), \(b_i\) and \(c_i\) (etc) indicate whether or not (0/1) the doublet involves each cluster.
+
+Because some doublets are easier to identify than others, some deviation from their expected abundance is typically observed.
+For this reason, a \(\text{difficulty}_i\) term is optionally included, indicating the difficulty in identifying doublets of origin \(i\), estimated from the misclassification of \texttt{scDblFinder}`s artificial doublets of that origin (by default, the term is included if at least 7 clusters are present).
+A \(\beta_a\) significantly different from zero, then, indicates that cluster \emph{a} forms more or less doublets than expected -- if positive, it indicates cluster `stickiness.'
+
+For the (quasi-)binomial distributions, logit was used instead of log transformation, and the mean of observed and expected counts was used as observational weights.
+
+\subsubsection{Enrichment for specific combinations}
+
+To account for the different identification difficulty across doublet types, we first fit the following global negative binomial model:
+
+\[
+\log(observed_i) = \alpha + \log(expected_i) + \beta \cdot \log(difficulty_i),
+\]
+where \(\text{observed}_i\) and \(\text{expected}_i\) are respectively the observed and theoretically expected number of doublets of type \(i\), and the \(\text{difficulty}_i\) term is the same as for the stickiness problem above.
+Then, the fitted values are then considered the expected abundance, and a p-value for each doublet type is given by the probability of the observed count under this adjusted expected value, using either distribution (for the negative binomial, the global over-dispersion parameter calculated in the first step is used).
+
+\subsection{Direct classification}
+
+The direct classification approach is implemented in the \texttt{directDblClassification} function of the package. It uses the same doublet generation, thresholding and iterative learning procedures as \texttt{scDblFinder}, but trains directly on the normalized expression matrix of real and artificial droplets instead of kNN-based features. The hyperparameters were the same except for the maximum tree depth, which was increased to 6 to account for the increased complexity of the predictors.
+
+\subsection{Feature aggregation}
+
+For feature aggregation, \texttt{scDblFinder} first normalizes the counts using the Term Frequency - Inverse Document Frequency (TF-IDF) normalization, as implemented in Stuart et al. (2019). PCA is then performed and the features are clustered into the desired number of meta-features using mini-batch k-means (Hicks et al. 2021) or, if not available, simple k-means. The counts are then summed per meta-feature.
+
+\subsection{Benchmark}
+
+\subsubsection{Datasets}
+
+We used the scRNAseq benchmark datasets prepared by Xi and Li (2021a), which were originally published by Kang et al. (2018), Stoeckius et al. (2018), McGinnis, Murrow, and Gartner (2019), McGinnis et al. (2019), and Wolock, Lopez, and Klein (2019).
+
+\subsubsection{Metrics}
+
+The area under the PR or ROC curves were calculated using integral method, implemented in the \texttt{PRROC} package (Grau, Grosse, and Keilwagen, n.d.). The adjusted AUPRC, meant to capture the AUPRC accounting for homotypic and intra-genotype doublets, was calculated as the proportion of the unshaded area in Figure 3. Specifically, values were linearly scaled values so that an observed FDR of corresponding to the expected proportion of intra-genotype doublets is set to 0, and that an observed TPR corresponding to one minus the expected proportion of homotypic doublets as an adjusted TPR of 1. Values were capped to be within a 0-1 range, and the area under the curve was calculated using trapezoid approximation. The expected proportion of homotypic doublets was estimated using the clusters from the fast clustering method described above (see \protect\hyperlink{fast-clustering}{Fast clustering}).
+
+The reported metrics are an average of the results of two runs using different random seeds.
+
+\section{scDblFinder operation}
+
+\texttt{scDblFinder} is provided as a bioconductor package.
+The input data for \texttt{scDblFinder} (denoted \texttt{x} below) can be either
+i) a count matrix (full or sparse), with genes/features as rows and cells/droplets as columns; or
+ii) an object of class \emph{\href{https://bioconductor.org/packages/3.13/SingleCellExperiment}{SingleCellExperiment}}.
+In either case, the object should not contain empty drops, but should not otherwise have undergone very stringent filtering (which would bias the estimate of the doublet rate). The doublet detection can then be launched with:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{library}\NormalTok{(scDblFinder)}
+\NormalTok{sce }\OtherTok{\textless{}{-}} \FunctionTok{scDblFinder}\NormalTok{(x)}
+\end{Highlighting}
+\end{Shaded}
+
+The output is a \emph{\href{https://bioconductor.org/packages/3.13/SingleCellExperiment}{SingleCellExperiment}} object including all of the input data, as well as a number of columns to the \texttt{colData} slot, the most important of which are:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{sce\$scDblFinder.score} : the final doublet score (the higher the more likely that the droplet is a doublet)
+\item
+  \texttt{sce\$scDblFinder.class} : the binary classification (doublet or singlet)
+\end{itemize}
+
+For more details, see the package's vignettes.
+
+\section{Conclusions}
+
+The \texttt{scDblFinder} package includes a set of efficient methods for doublet detection in both single-cell RNA and ATAC sequencing. In particular, the main \texttt{scDblFinder} approach integrates insights from previous approaches into a comprehensive doublet detection method that provides robustly accurate detection across a number of benchmark datasets, at a considerably greater speed and scalability than the best alternatives. Even in complex datasets, most heterotypic doublets can be accurately identified. Although the doublet scores given by \texttt{scDblFinder} can be directly interpreted as probabilities, simplifying their interpretation, the method also includes a trade-off thresholding procedure incorporating doublet rate expectations with classification optimization, thereby facilitating its usage.
+
+\texttt{scDblFinder} additionally provides utilities for identifying the origins of doublets (in terms of composing cell types) and testing for different forms of doublet enrichment. At present, however, the value of such tests is limited by the difficulty of accurately identifying doublet origins. Further research will be needed to assess to what extent this can be improved.
+
+In conclusion, we believe that \texttt{scDblFinder}, with its flexibility, accuracy and scalability, represents a key resource for doublet detection in high-throughput single-cell sequencing data.
+
+
+
+
+
+\subsection*{Software availability}
+
+\texttt{scDblFinder} is available from Bioconductor: \url{http://www.bioconductor.org/packages/release/bioc/html/scDblFinder.html}
+
+The source code is available from: \url{https://github.com/plger/scDblFinder}
+
+Archived source code at time of publication: \url{https://doi.org/10.6084/m9.figshare.16543518.v1}
+
+The software is released under the GNU Public License (GPL-3).
+
+\subsection*{Extended data}
+
+\url{https://doi.org/10.6084/m9.figshare.16617571.v1}
+
+This repository contains the following extended data:
+
+\begin{itemize}
+\tightlist
+\item
+  Supplementary Figures (see Extended Data - Figures 1-10)
+\end{itemize}
+
+Data are available under the terms of the Creative Commons BY 4.0 license.
+
+\subsection*{Underlying data}
+
+\url{https://doi.org/10.6084/m9.figshare.16543518.v1}
+
+This repository contains the following underlying data:
+
+\begin{itemize}
+\tightlist
+\item
+  scDblFinder 1.7.4 (archived software version used in the paper)
+\item
+  scDblFinder\_paper (code to reproduce the analyses and figures)
+\end{itemize}
+
+The code to reproduce the analyses and figures is additionally available at \url{https://github.com/plger/scDblFinder_paper}
+
+Data are available under the terms of the Creative Commons BY 4.0 license.
+
+\subsection*{Authors' contributions}
+
+PLG developed the scDblFinder method and performed the analyses, and wrote the paper with feedback from all authors.
+AL contributed alternatives methods to the package and provided support.
+WCM provided general feedback and testing, and helped with the design of the enrichment tests.
+MDR supervised and funded the project.
+
+\subsection*{Competing interests}
+
+No competing interests were disclosed.
+
+\subsection*{Grant information}
+
+This work was supported by the Swiss National Science Foundation (grant number 310030\_175841). MDR acknowledges support from the University Research Priority Program Evolution in Action at the University of Zurich.
+
+\subsection*{Acknowledgments}
+
+We thank Nan Miles Xi and Jingyi Jessica Li for help with their benchmark datasets; Jeffrey Granja for support with ArchR and its attached datasets; and the Robinson group, users and reviewers for feedback.
+
+\bigskip
+
+
+\section*{References}
+
+\begin{CSLReferences}{1}{0}
+\leavevmode\hypertarget{ref-amezquitaOrchestratingSinglecellAnalysis2019}{}%
+Amezquita, Robert A., Aaron T. L. Lun, Etienne Becht, Vince J. Carey, Lindsay N. Carpp, Ludwig Geistlinger, Federico Martini, et al. 2019. {``Orchestrating Single-Cell Analysis with Bioconductor.''} \emph{Nature Methods}, December, 1--9. \url{https://doi.org/10.1038/s41592-019-0654-x}.
+
+\leavevmode\hypertarget{ref-baisScdsComputationalAnnotation2020}{}%
+Bais, Abha S, and Dennis Kostka. 2020. {``Scds: Computational Annotation of Doublets in Single-Cell RNA Sequencing Data.''} \emph{Bioinformatics} 36 (4): 1150--58. \url{https://doi.org/10.1093/bioinformatics/btz698}.
+
+\leavevmode\hypertarget{ref-bernsteinSoloDoublet2020}{}%
+Bernstein, Nicholas J., Nicole L. Fong, Irene Lam, Margaret A. Roy, David G. Hendrickson, and David R. Kelley. 2020. {``Solo: Doublet Identification in Single-Cell RNA-Seq via Semi-Supervised Deep Learning.''} \emph{Cell Systems}, June. \url{https://doi.org/10.1016/j.cels.2020.05.010}.
+
+\leavevmode\hypertarget{ref-bloomEstimatingFrequencyMultiplets2018}{}%
+Bloom, Jesse D. 2018. {``Estimating the Frequency of Multiplets in Single-Cell RNA Sequencing from Cell-Mixing Experiments.''} \emph{PeerJ} 6 (September): e5578. \url{https://doi.org/10.7717/peerj.5578}.
+
+\leavevmode\hypertarget{ref-depasqualeDoubletDeconDeconvoluting2019}{}%
+DePasquale, Erica A.K., Daniel J. Schnell, Pieter-Jan Van Camp, Íñigo Valiente-Alandí, Burns C. Blaxall, H. Leighton Grimes, Harinder Singh, and Nathan Salomonis. 2019. {``DoubletDecon: Deconvoluting Doublets from Single-Cell RNA-Sequencing Data.''} \emph{Cell Reports} 29 (6): 1718--1727.e8. \url{https://doi.org/10.1016/j.celrep.2019.09.082}.
+
+\leavevmode\hypertarget{ref-germainPipeCompGeneral2020b}{}%
+Germain, Pierre-Luc, Anthony Sonrel, and Mark D. Robinson. 2020. {``pipeComp, a General Framework for the Evaluation of Computational Pipelines, Reveals Performant Single Cell RNA-Seq Preprocessing Tools.''} \emph{Genome Biology} 21 (1): 227. \url{https://doi.org/10.1186/s13059-020-02136-7}.
+
+\leavevmode\hypertarget{ref-granjaArchRScalableSoftware2021}{}%
+Granja, Jeffrey M., M. Ryan Corces, Sarah E. Pierce, S. Tansu Bagdatli, Hani Choudhry, Howard Y. Chang, and William J. Greenleaf. 2021. {``ArchR Is a Scalable Software Package for Integrative Single-Cell Chromatin Accessibility Analysis.''} \emph{Nature Genetics}, February, 1--9. \url{https://doi.org/10.1038/s41588-021-00790-6}.
+
+\leavevmode\hypertarget{ref-grauPRROCComputingVisualizing}{}%
+Grau, Jan, Ivo Grosse, and Jens Keilwagen. n.d. {``PRROC: Computing and Visualizing Precision-Recall and Receiver Operating Characteristic Curves in R,''} 3.
+
+\leavevmode\hypertarget{ref-hicksMbkmeansFastClustering2021}{}%
+Hicks, Stephanie C., Ruoxi Liu, Yuwei Ni, Elizabeth Purdom, and Davide Risso. 2021. {``Mbkmeans: Fast Clustering for Single Cell Data Using Mini-Batch k-Means.''} \emph{PLOS Computational Biology} 17 (1): e1008625. \url{https://doi.org/10.1371/journal.pcbi.1008625}.
+
+\leavevmode\hypertarget{ref-kangMultiplexedDropletSinglecell2018}{}%
+Kang, Hyun Min, Meena Subramaniam, Sasha Targ, Michelle Nguyen, Lenka Maliskova, Elizabeth McCarthy, Eunice Wan, et al. 2018. {``Multiplexed Droplet Single-Cell RNA-Sequencing Using Natural Genetic Variation.''} \emph{Nature Biotechnology} 36 (1): 89--94. \url{https://doi.org/10.1038/nbt.4042}.
+
+\leavevmode\hypertarget{ref-lutgeCellMixSQuantifyingVisualizing2021}{}%
+Lütge, Almut, Joanna Zyprych-Walczak, Urszula Brykczynska Kunzmann, Helena L. Crowell, Daniela Calini, Dheeraj Malhotra, Charlotte Soneson, and Mark D. Robinson. 2021. {``CellMixS: Quantifying and Visualizing Batch Effects in Single-Cell RNA-Seq Data.''} \emph{Life Science Alliance} 4 (6). \url{https://doi.org/10.26508/lsa.202001004}.
+
+\leavevmode\hypertarget{ref-mcginnisDoubletFinderDoubletDetection2019}{}%
+McGinnis, Christopher S., Lyndsay M. Murrow, and Zev J. Gartner. 2019. {``DoubletFinder: Doublet Detection in Single-Cell RNA Sequencing Data Using Artificial Nearest Neighbors.''} \emph{Cell Systems} 8 (4): 329--37. \url{https://doi.org/10.1016/j.cels.2019.03.003}.
+
+\leavevmode\hypertarget{ref-mcginnisMULTIseqSampleMultiplexing2019}{}%
+McGinnis, Christopher S., David M. Patterson, Juliane Winkler, Daniel N. Conrad, Marco Y. Hein, Vasudha Srivastava, Jennifer L. Hu, et al. 2019. {``MULTI-Seq: Sample Multiplexing for Single-Cell RNA Sequencing Using Lipid-Tagged Indices.''} \emph{Nature Methods} 16 (7): 619--26. \url{https://doi.org/10.1038/s41592-019-0433-8}.
+
+\leavevmode\hypertarget{ref-neavinDemuxafyImprovementDroplet2022}{}%
+Neavin, Drew, Anne Senabouth, Jimmy Tsz Hang Lee, Aida Ripoll, sc-eQTLGen Consortium, Lude Franke, Shyam Prabhakar, et al. 2022. {``\emph{Demuxafy} : Improvement in Droplet Assignment by Integrating Multiple Single-Cell Demultiplexing and Doublet Detection Methods.''} Preprint. Genomics. \url{https://doi.org/10.1101/2022.03.07.483367}.
+
+\leavevmode\hypertarget{ref-stoeckiusCellHashingBarcoded2018}{}%
+Stoeckius, Marlon, Shiwei Zheng, Brian Houck-Loomis, Stephanie Hao, Bertrand Z. Yeung, William M. Mauck, Peter Smibert, and Rahul Satija. 2018. {``Cell Hashing with Barcoded Antibodies Enables Multiplexing and Doublet Detection for Single Cell Genomics.''} \emph{Genome Biology} 19 (1): 224. \url{https://doi.org/10.1186/s13059-018-1603-1}.
+
+\leavevmode\hypertarget{ref-stuartComprehensiveIntegrationSingleCell2019}{}%
+Stuart, Tim, Andrew Butler, Paul Hoffman, Christoph Hafemeister, Efthymia Papalexi, William M. Mauck, Yuhan Hao, Marlon Stoeckius, Peter Smibert, and Rahul Satija. 2019. {``Comprehensive Integration of Single-Cell Data.''} \emph{Cell} 177 (7): 1888--1902.e21. \url{https://doi.org/10.1016/j.cell.2019.05.031}.
+
+\leavevmode\hypertarget{ref-thibodeauAMULETNovelRead2021}{}%
+Thibodeau, Asa, Alper Eroglu, Christopher S. McGinnis, Nathan Lawlor, Djamel Nehar-Belaid, Romy Kursawe, Radu Marches, et al. 2021. {``AMULET: A Novel Read Count-Based Method for Effective Multiplet Detection from Single Nucleus ATAC-Seq Data.''} \emph{Genome Biology} 22 (1): 252. \url{https://doi.org/10.1186/s13059-021-02469-x}.
+
+\leavevmode\hypertarget{ref-tianScRNAseqMixologyBetter2018}{}%
+Tian, Luyi, Xueyi Dong, Saskia Freytag, Kim-Anh Le Cao, Shian Su, Daniela Amann-Zalcenstein, Tom S Weber, Azadeh Seidi, Shalin Naik, and Matthew E Ritchie. 2018. {``scRNA-Seq Mixology: Towards Better Benchmarking of Single Cell RNA-Seq Protocols and Analysis Methods.''} \emph{bioRxiv}, October. \url{https://doi.org/10.1101/433102}.
+
+\leavevmode\hypertarget{ref-wolockScrubletComputationalIdentification2019}{}%
+Wolock, Samuel L., Romain Lopez, and Allon M. Klein. 2019. {``Scrublet: Computational Identification of Cell Doublets in Single-Cell Transcriptomic Data.''} \emph{Cell Systems} 8 (4): 281--291.e9. \url{https://doi.org/10.1016/j.cels.2018.11.005}.
+
+\leavevmode\hypertarget{ref-xiBenchmarkingComputationalDoubletDetection2021}{}%
+Xi, Nan Miles, and Jingyi Jessica Li. 2021a. {``Benchmarking Computational Doublet-Detection Methods for Single-Cell RNA Sequencing Data.''} \emph{Cell Systems} 12 (2): 176--194.e6. \url{https://doi.org/10.1016/j.cels.2020.11.008}.
+
+\leavevmode\hypertarget{ref-xiProtocolExecutingBenchmarking2021}{}%
+---------. 2021b. {``Protocol for Executing and Benchmarking Eight Computational Doublet-Detection Methods in Single-Cell RNA Sequencing Data Analysis.''} \emph{arXiv:2101.08860 {[}q-Bio{]}}, June. \url{http://arxiv.org/abs/2101.08860}.
+
+\leavevmode\hypertarget{ref-xiongChordIdentifyingDoublets2021}{}%
+Xiong, Ke-Xu, Han-Lin Zhou, Jian-Hua Yin, Karsten Kristiansen, Huan-Ming Yang, and Gui-Bo Li. 2021. {``Chord: Identifying Doublets in Single-Cell RNA Sequencing Data by an Ensemble Machine Learning Algorithm.''} bioRxiv. \url{https://doi.org/10.1101/2021.05.07.442884}.
+
+\end{CSLReferences}
+
+
+% {\small\bibliographystyle{unsrtnat}
+% \bibliography{sample}}
+
+
+% See this guide for more information on BibTeX:
+% http://libguides.mit.edu/content.php?pid=55482&sid=406343
+
+% For more author guidance please see:
+% http://f1000research.com/author-guidelines
+
+
+% When all authors are happy with the paper, use the 
+% ‘Submit to F1000Research' button from the menu above
+% to submit directly to the open life science journal F1000Research.
+
+% Please note that this template results in a draft pre-submission PDF document.
+% Articles will be professionally typeset when accepted for publication.
+
+% We hope you find the F1000Research Overleaf template useful,
+% please let us know if you have any feedback using the help menu above.
+
+
+\end{document}
