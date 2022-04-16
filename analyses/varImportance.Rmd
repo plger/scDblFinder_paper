@@ -1,0 +1,56 @@
+---
+title: "Variable importance in training"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(xgboost)
+})
+# use a version of the package modified to return variable importance (see comments in code)
+devtools::load_all("../../../scDblFinder/")
+```
+
+```{r}
+lf <- list.files("../benchmark/datasets/", pattern="rds$", full=TRUE)
+names(lf) <- gsub("\\.rds$","", basename(lf))
+set.seed(123)
+ll <- lapply(lf, FUN=function(x){
+  x <- readRDS(x)
+  scDblFinder(SingleCellExperiment(list(counts=x[[1]])), returnType="table")
+})
+```
+
+```{r}
+ratios <- paste0("ratio.k",c(3,10,15,20,25))
+ll2 <- lapply(ll, FUN=function(x){
+  # take top PC
+  pc <- grepl("^PC",x$Feature)
+  tmp <- matrixStats::colMaxs(as.matrix(x[pc,-1]))
+  pcd <- data.frame(Feature="PCs", t(tmp))
+  colnames(pcd) <- colnames(x)
+  x <- rbind(x[!pc,], pcd)
+  rats <- grepl("^ratio\\.k", x$Feature) & !(x$Feature %in% ratios)
+  if(sum(rats)>0){
+    # broad ratio isn't the same across datasets, use the top one
+    pcd <- matrixStats::colMaxs(as.matrix(x[rats,-1,drop=FALSE]))
+    pcd <- data.frame(Feature="ratio.broad", t(pcd))
+    colnames(pcd) <- colnames(x)
+    x <- rbind(x[!rats,], pcd)
+  }
+  x
+})
+d <- dplyr::bind_rows(ll2, .id="dataset")
+d$Feature <- gsub("weighted", "ratio.weighted", d$Feature)
+saveRDS(d, file="../paper/data/varImportance.rds")
+```
+
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
