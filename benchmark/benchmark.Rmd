@@ -1,7 +1,7 @@
 ---
 title: "Running methods and computing performance metrics"
 author: "Pierre-Luc Germain"
-date: "7/15/2021"
+date: "2022/04/11"
 output: html_document
 ---
 
@@ -22,7 +22,6 @@ chordWrapper <- function(x, overkill=TRUE, ...){
   unlink("tmp_chordreal_score.csv")
   cs$chord
 }
-
 ```
 
 
@@ -30,14 +29,12 @@ chordWrapper <- function(x, overkill=TRUE, ...){
 datasets <- list.files("datasets", pattern="\\.rds$", full=TRUE)
 names(datasets) <- gsub("\\.rds$","",basename(datasets))
 methods <- c('Scrublet','cxds','bcds','hybrid','scDblFinder.clusters','scDblFinder.random',
-             'DoubletFinder','computeDoubletDensity','directDblClassification')
-
+             'DoubletFinder','computeDoubletDensity','Chord')
+methods <- methods[-1]
 datasets <- lapply(datasets, readRDS)
 
-scores <- lapply(datasets, FUN=function(x){
-  x <- x[[1]]
-  lapply(setNames(methods, methods), FUN=function(method){
-    st <- system.time( sco <- switch(method,
+wrap <- function(x, method){
+  switch(method,
       "DoubletFinder"=DoubletCollection:::CallDoubletFinder(x),
       "Scrublet"=DoubletCollection:::CallScrublet(x),
       "scDblFinder"=scDblFinder(x)$scDblFinder.score,
@@ -48,11 +45,25 @@ scores <- lapply(datasets, FUN=function(x){
       "DoubletDetection"=DoubletCollection:::CallDoubletDetection(x),
       "Chord"=chordWrapper(x),
       DoubletCollection:::Callscds(count=x, method=method)
-    ))
-    list(scores=sco, time=st)
+    )
+}
+
+scores2 <- lapply(datasets, FUN=function(x){
+  x <- x[[1]]
+  lapply(setNames(methods, methods), FUN=function(method){
+    tryCatch({
+      # average across 2 seeds:
+      set.seed(42)
+      st1 <- system.time( sco1 <- wrap(x, method) )
+      set.seed(1234)
+      st2 <- system.time( sco2 <- wrap(x, method) )
+      list(scores=c(sco1+sco2)/2, time=(st1+st2)/2)
+    }, error=function(e){
+      warning("Error running ", method,":\n", e)
+      list(scores=rep(NA_real_, ncol(x)), st=NA)
+    })
   })
 })
-
 saveRDS(scores, file="scores.rds")
 ```
 
@@ -70,7 +81,7 @@ res <- dplyr::bind_rows(lapply(setNames(names(scores),names(scores)),
       elapsed=as.numeric(unlist(x$time["elapsed"])))
   }), .id="method")
 }), .id="dataset")
-saveRDS(res, file="benchmark.results.rds")
+saveRDS(as.data.frame(res), file="benchmark.results.rds")
 ```
 
 ```{r}
