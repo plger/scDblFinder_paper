@@ -103,7 +103,6 @@ In particular, the `scDblFinder` method integrates insights from previous approa
 
 As most approaches rely on some comparison of real droplets to artificial doublets, it is crucial to appropriately simulate doublets. To this end, we first characterized real doublets using a dataset of genetically distinct cell lines [@tianScRNAseqMixologyBetter2018]. Because each cell line represents a distinct and more or less homogeneous transcriptional state, it is possible, using genotypes, to identify the `cell types' composing each doublet (Figure \@ref(fig:realDbls)).
 Although often larger, the median library sizes of  doublets were systematically smaller than the sum of the median library sizes of composing cell types (Figure \@ref(fig:realDbls)A).
-We next investigated the relative contributions of the composing cell types using non-negative least squares regression, expecting the larger cell types to contribute more to the doublet's transcriptome.
 
 ```{r realDbls, fig.width=9, fig.height=8, fig.cap="**Characterization of real doublets in a mixture of three human lung adenocarcinoma cell lines. A:** Observed median (and +/- one median absolute deviation in) library sizes per cell type against additive expectation for single cell and doublet types in a real dataset. The dashed line indicates the diagonal. **B:** Relative contribution of composing cell types in real doublets (each point represents a doublet) plotted against the expected relative contributions (based on the ratio between the median library sizes of the composing cell types). Values indicate the relative contribution of one of the two cell types to the doublet's transcriptome. The dashed line indicates the diagonal, and the thick line indicates the weighted mean per doublet type. The annotation of cell types and their combinations comes from the original Demuxlet analysis by Tian et al., excluding ambiguous calls."}
 # real doublet sizes compared to expected sizes
@@ -156,13 +155,13 @@ p2 <- ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed
   labs(x="Expected proportion (based on median cell type library size)",
        y="Estimated proportion", size="Library size")
 
-# pdf("Figure1.pdf", width=9, height=8)
-# plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
-# dev.off()
+pdf("Figure1.pdf", width=9, height=8)
+plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
+dev.off()
 plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
 ```
 
-Although differences in median library size across cell types were small (less than two-fold) compared to other datasets, we observed an association of the relative contributions with the relative sizes of the composing cell types (Figure \@ref(fig:realDbls)B, p~`r format(coef(summary(lm(ratio~0+expected.ratio, data=ag2)))[1,4], digits=2)`).
+We next investigated the relative contributions of the composing cell types using non-negative least squares regression, expecting the larger cell types to contribute more to the doublet's transcriptome. Although differences in median library size across cell types were small (less than two-fold) compared to other datasets, we observed an association of the relative contributions with the relative sizes of the composing cell types (Figure \@ref(fig:realDbls)B, p~`r format(coef(summary(lm(ratio~0+expected.ratio, data=ag2)))[1,4], digits=2)`).
 However, this effect was very weak -- considerably smaller than the variation within doublet type.
 This suggests that there are 
 i) large variations in real cell size within a given cell type, and/or
@@ -194,7 +193,7 @@ Here we reproduced this benchmark using the most recent versions of the packages
 
 Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across real benchmark datasets, as measured by the area under the precision-recall (PR) curve (AUPRC) in classifying genotype-annotated doublets. `scDblFinder` ranks first in a majority of datasets, and otherwise typically very close to the top. Calculating the mean AUPRC across the datasets, the top two methods are the two `scDblFinder` variants (`r suppFig(increment=FALSE)`C). In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
 
-```{r benchmark1, fig.width=9, fig.height=5.4, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods with names in black are available through the scDblFinder package. Running times are indicated on the left. On top the number of cells in each dataset is shown, and colored by the proportion of variance explained by the first two components (relative to that explained by the first 100) as a rough guide to dataset complexity."}
+```{r benchmark1, fig.width=9.5, fig.height=5.8, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods with names in black are available through the scDblFinder package. Running times are indicated on the left. On top the number of cells in each dataset is shown, and colored by the proportion of variance explained by the first two components (relative to that explained by the first 100) as a rough guide to dataset complexity."}
 e <- readRDS("../benchmark/benchmark.results.rds")
 
 res <- readRDS("../analyses/optims_direct.rds")
@@ -243,19 +242,15 @@ p1 <- ggplot(e, aes(dataset, method)) + geom_point(aes(colour=point.colour, size
                                  colour=ifelse(levels(e$method) %in% scdbl.methods,"black","grey30")), 
         axis.title.y=element_blank(), panel.grid=element_blank())
 
-ag <- aggregate(e[,"elapsed"], by=e[,"method",drop=FALSE], FUN=mean)
+ag <- aggregate(e[,"elapsed",drop=FALSE], by=e[,"method",drop=FALSE], FUN=mean)
 p2 <- ggplot(ag, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") + 
   #scale_y_continuous(trans = ggforce::trans_reverser('sqrt'), breaks=c(10,60,300)) + 
-  geom_text(aes(y=200,label=paste0(round(elapsed),"s"),colour=elapsed>200), hjust=1) + 
+  geom_text(aes(y=75,label=paste0(round(elapsed),"s"),colour=elapsed>200), hjust=1) + 
   scale_colour_manual(values=c("TRUE"="white", "FALSE"="black"), guide=FALSE) +
   scale_y_reverse() + coord_flip() + ylab("Mean running\ntime (s)") +
   theme(axis.text.y=element_blank(), axis.title.y=element_blank(), 
         axis.text.x=element_text(angle=90), panel.grid.major.y = element_blank(),
         panel.grid.minor.x = element_blank(), panel.grid.major.x=element_line(colour="lightgrey"))
-
-# pdf("Figure3.pdf", width=9, height=4.6)
-# plot_grid(p2,p1,align="h", rel_widths=c(1,7))
-# dev.off()
 
 m <- readRDS("data/dataset_desc.rds")
 m$dataset <- factor(row.names(m), names(datmax))
@@ -266,7 +261,12 @@ p3 <- ggplot(m, aes(dataset, ncells, fill=ve)) + geom_col() + xlab("") +
   guides(fill=guide_colourbar(barheight=unit(1, "cm")))
 
 #plot_grid(p2,p1,align="h", rel_widths=c(1,7))
-((plot_spacer()/p2+plot_layout(heights=c(1,3))) | (p3/p1+plot_layout(heights=c(1,3.5)))) + plot_layout(widths=c(1,7))
+p <- ((plot_spacer()/p2+plot_layout(heights=c(1,3))) | (p3/p1+plot_layout(heights=c(1,3.5)))) + plot_layout(widths=c(1,7))
+
+pdf("Figure3.pdf", width=9.5, height=5.8)
+p
+dev.off()
+p
 ```
 
 ### kNN summarization improves upon direct classification
@@ -312,16 +312,14 @@ p2 <- plotROCs(list(score=e$scDblFinder.score), e$multiplets=="doublet", fdr=TRU
   geom_point(data=d, aes(x,y), size=3.5) + 
   labs(x="FDR (SNP-based)", y="TPR (SNP-based)")
 
-# pdf("Figure4.pdf", width=9, height=4)
-# plot_grid(dblTypesScheme(), 
-#           p2 + theme(legend.position="none"), 
-#           scale=0.95, labels="AUTO")
-# 
-# dev.off()
+p <- plot_grid( dblTypesScheme(), 
+                p2 + theme(legend.position="none"), 
+                scale=0.95, labels="AUTO")
 
-plot_grid(dblTypesScheme(), 
-          p2 + theme(legend.position="none"), 
-          scale=0.95, labels="AUTO")
+pdf("Figure4.pdf", width=9, height=4)
+p
+dev.off()
+
 ```
 
 Adjusting for both types of 'misannotation' (i.e. homotypic doublet and missed within-genotype doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in `r suppFig()`).
@@ -333,7 +331,8 @@ and users are left to decide on a threshold above which droplets will be exclude
 Different methods have been suggested to this end.
 Building on the fairly tight relationship (especially in 10x-based datasets) between the number of cells captured and the rate of doublets generated [@kangMultiplexedDropletSinglecell2018], some have set thresholds based on the number of doublets (or heterotypic doublets) one expects to find in the data [@mcginnisDoubletFinderDoubletDetection2019]. Others have used the best tradeoff in misclassifying artificial doublets from real droplets [@wolockScrubletComputationalIdentification2019].
 Because `scDblFinder`'s scores come from a classifier, they are analogous to this tradeoff, and can directly be interpreted as a probability (not adjusting, however, for the base rate of doublets).
-In most cases, we found the `scDblFinder` scores to change rapidly from high to low very close to the inflection point of the ROC curve (Figure \@ref(fig:thresholding)A), indicating that a fixed threshold (e.g. 0.5) can often be used.
+
+With true labels available, the benchmark datasets can again be used to evaluate thresholds. In most cases, we found the `scDblFinder` scores to change rapidly from high to low very close to the inflection point of the ROC curve (Figure \@ref(fig:thresholding)A), indicating that a fixed threshold (e.g. 0.5) can often be used.
 In some cases, the scores are much more gradual, requiring a non-arbitrary way to set the thresholds.
 `scDblFinder` therefore includes a thresholding method that combines both of the aforementioned rationales, and attempts to minimize both the proportion of artificial doublets being misclassified and the deviation from the expected doublet rate (see [Thresholding] and `r suppFig()`A).
 
@@ -531,9 +530,9 @@ p4 <- grid.grabExpr(draw(p4, merge_legends=FALSE,
 p <- plot_grid(plot_grid(p1, p3, nrow=1, labels="AUTO", scale=0.9), p4,
                nrow=2, labels=c(NA,"C"), rel_heights=c(3,2), scale=c(1,0.9))
 
-# pdf("Figure5.pdf", width=9, height=7)
-# p
-# dev.off()
+pdf("Figure5.pdf", width=9, height=7)
+p
+dev.off()
 p
 ```
 
@@ -553,9 +552,10 @@ p <- ggplot(res2, aes(dataset, value, fill=method)) +
   geom_col(position="dodge") + facet_wrap(~variable) +
   labs(x="Dataset", y="") + coord_flip() + 
   theme(legend.position="bottom")
-# pdf("Figure6.pdf", width=8, height=4)
-# p
-# dev.off()
+
+pdf("Figure6.pdf", width=8, height=4)
+p
+dev.off()
 p
 ```
 
@@ -606,9 +606,9 @@ s2$metric <- rep(c("AUROC","AUPRC"), each=nrow(stats))
 s2$value <- c(stats$AUROC, stats$AUPRC)
 p <- ggplot(s2, aes(method, value, fill=metric)) + geom_col(position=position_dodge()) + facet_wrap(~Dataset) + coord_flip()
 
-# pdf("Figure7.pdf", width=7, height=3.5)
-# p
-# dev.off()
+pdf("Figure7.pdf", width=7, height=3.5)
+p
+dev.off()
 p
 ```
 
@@ -701,9 +701,9 @@ p <- plot_grid(p1,
     nrow=1, rel_widths=c(3,3,1), scale=0.95, labels=c("C","D","")),
   nrow=2, rel_heights=c(2.1,3))
 
-# pdf("Figure8.pdf", width=8, height=6)
-# p
-# dev.off()
+pdf("Figure8.pdf", width=8, height=6)
+p
+dev.off()
 p
 ```
 
