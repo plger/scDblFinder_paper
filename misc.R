@@ -72,11 +72,11 @@ plotROCs <- function(scores, truth, fdr=FALSE, th=c(), showLegend=TRUE,
   if(prop.wrong.pos>0) p <- p + geom_hline(yintercept=1-prop.wrong.pos, linetype="dashed") +
     geom_rect(data=dummy,xmin=ifelse(fdr,prop.wrong.neg,0),xmax=1,ymin=1-prop.wrong.pos,ymax=1,alpha=0.2,fill="grey25") +
     #annotate(geom="text", x=0.99, y=1.02-prop.wrong.pos, label=round(1-prop.wrong.pos,3), hjust="right", vjust="bottom") +
-    annotate(geom="text", x=0.02+prop.wrong.neg, y=1-prop.wrong.pos/2, label="Homotypic doublets", vjust="center", hjust="left")
+    annotate(geom="text", x=0.02+prop.wrong.neg, y=1-prop.wrong.pos/2, label="Homotypic doublets\n(false positives)", vjust="center", hjust="left", size=3.8)
   if(!showLegend) p <- p + theme(legend.position="none")
   if(prop.wrong.neg>0 & fdr) p <- p + geom_vline(xintercept=prop.wrong.neg, linetype="dashed") +
     geom_rect(data=dummy,xmin=0,xmax=prop.wrong.neg,ymin=0,ymax=1-prop.wrong.pos,alpha=0.2,fill="grey25") +
-    annotate(geom="text", x=prop.wrong.neg/2, y=(1-prop.wrong.pos)/2, label="Intra-genotype heterotypic", vjust="middle", hjust="center", angle=90)
+    annotate(geom="text", x=prop.wrong.neg/2, y=(1-prop.wrong.pos)/2, label="Intra-genotype heterotypic\n(false negatives)", vjust="middle", hjust="center", angle=90, size=3.8)
   if(printAUC) p <- p + annotate("text",x=0.99, y=0.01, vjust="bottom", hjust="right",
                label=paste0(ifelse(prop.wrong.neg>0 | prop.wrong.pos>0,"Adjusted",""),
                             ifelse(fdr," AUPRC","AUROC"),"\n", round(auc,3)))
