@@ -62,12 +62,6 @@ p2 <- vp(res, aes(iter, AUPRC.diff), fill="lightgrey") +
 
 e <- readRDS("../benchmark/benchmark.results.rds")
 
-res <- readRDS("../analyses/optims_propRandom.rds")
-res <- res[res$propRandom==1,]
-res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
-res$method <- "scDblFinder.rnd"
-e <- rbind(e, res[,colnames(e)])
-
 res <- readRDS("../analyses/optims_direct.rds")
 res <- res[res$processing=="direct rawFeatures",]
 res <- aggregate(res[,c("AUPRC","AUROC","elapsed")], by=res[,"dataset",drop=FALSE], FUN=mean)
@@ -90,7 +84,7 @@ plot_grid(
 
 ### `r getFigNb()`
 
-**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method. In **A-B**, the violins represent the distribution (as well as mean and standard error) of differences to the median (across method) AUPRC for the dataset (higher is better). 
+**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method. In **A-B**, the violins represent the distribution (as well as mean and standard error), across benchmark datasets, of differences to the median (across method) AUPRC for the dataset (higher is better).
 
 
 
@@ -199,7 +193,7 @@ plot_grid(p1, p2, nrow=2, labels="AUTO")
 
 ### `r getFigNb()`
 
-**Doublets and sites covered by more than two reads. A:** Number of loci covered by more than two reads in annotated singlets and doublets in each dataset. **B:** Relationship between library size and the number of loci covered by more than two reads.
+**Doublets and sites covered by more than two reads (scATACseq). A:** Number of loci covered by more than two reads in annotated singlets and doublets in each dataset. **B:** Relationship between library size and the number of loci covered by more than two reads.
 
 
 
@@ -316,14 +310,19 @@ ggplot(e2, aes(excluded, value)) + geom_hline(yintercept=0, linetype="dashed") +
 
 ```{r}
 vi <- readRDS("data/varImportance.rds")
-ggplot(vi, aes(Feature, Gain)) + geom_boxplot() + coord_flip() + ylab("Relative contribution (Gain)")
+p1 <- ggplot(vi, aes(Feature, Gain)) + geom_boxplot(fill="lightgrey") + coord_flip() + 
+  labs(x="", y="Relative contribution (Gain)") + scale_y_reverse() + 
+  theme(axis.text.y=element_blank()) + geom_hline(yintercept=0, colour="grey")
+p2 <- ggplot(vi, aes(dataset, Feature, fill=Gain)) + geom_tile() + 
+  scale_fill_viridis_c() + ylab("") + theme(axis.text.x=element_text(angle=45, hjust=1, size=8))
+(p1 | p2) + plot_layout(widths=c(1,2))
 ```
 
 
 ### `r getFigNb()`
 
 **Variable importance calculated during training.**
-Each dot represents a dataset. For the principal components, the gain of the most informative component per dataset is used. `ratio.broad` refers to the ratio of artificial doublets in the largest neighborhood looked at (which varies across datasets).
+For the principal components, the gain of the most informative component per dataset is used. `ratio.broad` refers to the ratio of artificial doublets in the largest neighborhood looked at (which varies across datasets, and is not used in small datasets).
 
 \newpage
 
