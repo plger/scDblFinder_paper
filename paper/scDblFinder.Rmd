@@ -63,9 +63,18 @@ accessibility sequencing data, and provide some observations on doublet formatio
 Even in complex datsets, `scDblFinder` can accurately identify most heterotypic doublets, 
 and was already found by an independent benchmark to outcompete alternatives.
 
+Doublets are prevalent in single-cell sequencing data and can lead to artifactual findings.
+A number of strategies have therefore been proposed to detect them.
+Building on the strengths of existing approaches, we developed `scDblFinder`,
+a fast, flexible and accurate Bioconductor-based doublet detection method.
+Here we present the method, justify its design choices, demonstrate its performance on both single-cell RNA and accessibility (ATAC) sequencing data, and provide some observations on doublet formation, detection, and enrichment analysis.
+Even in complex datasets, scDblFinder can accurately identify most heterotypic doublets,
+and was already found by an independent benchmark to outcompete alternatives.
+
+
 # Keywords
 
-Single-cell sequencing, doublets, multiplets, filtering
+Single-cell sequencing, scRNA-seq, scATAC-seq, doublets, multiplets, filtering
 
 # Introduction
 
@@ -269,8 +278,9 @@ p2 <- ggplot(ag, aes(method, elapsed)) + geom_col(width=0.75, fill="#00204DFF") 
 
 m <- readRDS("data/dataset_desc.rds")
 m$dataset <- factor(row.names(m), names(datmax))
-p3 <- ggplot(m, aes(dataset, ncells, fill=ve)) + geom_col() + xlab("") + 
-  theme(axis.text.x=element_blank()) + 
+p3 <- ggplot(m, aes(dataset, ncells, fill=ve)) + geom_col() + labs(x="",y="# cells") + 
+  theme(axis.text.x=element_blank(), panel.grid.major.x=element_blank(),
+        panel.grid.minor=element_blank()) +
   viridis::scale_fill_viridis(option="B", direction=-1, breaks=range(m$ve), labels=c("Low","High"),
                               name="Dataset\nsimplicity\n") +
   guides(fill=guide_colourbar(barheight=unit(1, "cm"))) +
