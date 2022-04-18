@@ -90,7 +90,7 @@ In a similar fashion, one of the methods proposed by @baisScdsComputationalAnnot
 Droplets that are classified with artificial doublets are then called as doublets.
 Finally, another strategy proposed by @baisScdsComputationalAnnotation2020 is a coexpression score, <a href="https://bioconductor.org/packages/release/bioc/html/scds.html">`cxds`</a>, which flags droplets that co-express a number of genes that otherwise tend to be mutually exclusive.
 
-@xiBenchmarkingComputationalDoubletDetection2021 recently reported a benchmark of computational doublet detection methods, using both simulations and real datasets with genotype-based true doublets.
+@xiBenchmarkingComputationalDoubletDetection2021 recently reported a benchmark of computational doublet detection methods, using both simulations and real datasets with annotated true doublets.
 Interestingly, despite several new publications, the initial benchmark identified the oldest method, <a href="https://github.com/chris-mcginnis-ucsf/DoubletFinder">`DoubletFinder`</a> [@mcginnisDoubletFinderDoubletDetection2019].
 However, another important observation from the benchmark was that no single method was systematically the best across all datasets, highlighting the necessity to test and benchmark methods across a variety of datasets, and suggesting that some strategies might have advantages and disadvantages across situations.
 
@@ -155,9 +155,9 @@ p2 <- ggplot(dbls, aes(expectedProp, prop.type1)) + geom_abline(linetype="dashed
   labs(x="Expected proportion (based on median cell type library size)",
        y="Estimated proportion", size="Library size")
 
-pdf("Figure1.pdf", width=9, height=8)
-plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
-dev.off()
+# pdf("Figure1.pdf", width=9, height=8)
+# plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
+# dev.off()
 plot_grid(p1, p2, labels="AUTO", nrow=2, scale=0.95)
 ```
 
@@ -180,7 +180,8 @@ knitr::include_graphics("strategy2.svg")
 ```
 
 Figure \@ref(fig:strategy) gives an overview of the `scDblFinder` method (see [Methods] for details).
-Briefly, after some initial processing, artificial doublets (either random or between-cluster, depending on the settings) are generated, then a nearest neighbor network is generated.
+Briefly, after some initial processing, artificial doublets (either random or between-cluster, depending on the settings) are generated, then a nearest neighbor (kNN) network is generated.
+Rather than selecting a single neighborhood size, as most kNN-based methods do, `scDblFinder` gather statistics at various neighborhood sizes, thereby enabling the downstream classifier to select the most informative size(s), which might also differ across the expression space.
 Various characteristics from each cell/doublet and its neighborhood (such as the density of artificial doublets in the neighborhood) are then gathered to build a cell-level predictors matrix.
 On the basis of these predictors, a classifier is trained to distinguish artificial doublets from droplets.
 A key problem with classifier-based approaches is that some of the droplets are mislabeled, in the sense that they are in fact doublets labeled as singlets.
@@ -191,9 +192,9 @@ We found that 2-3 iterations provided the best performance (`r suppFig(increment
 A previous version of `scDblFinder` was already evaluated in an independent benchmark [see @xiProtocolExecutingBenchmarking2021, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021], where it was found superior to existing alternatives across a variety of metrics.
 Here we reproduced this benchmark using the most recent versions of the packages, and including variant methods from the `scDblFinder` package (among which the updated version of `r Biocpkg("scran")`'s original method, and now available in the `scDblFinder` package as `computeDoubletDensity`). In addition, we included the new method `Chord` [@xiongChordIdentifyingDoublets2021], which also combines different strategies.
 
-Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across real benchmark datasets, as measured by the area under the precision-recall (PR) curve (AUPRC) in classifying genotype-annotated doublets. `scDblFinder` ranks first in a majority of datasets, and otherwise typically very close to the top. Calculating the mean AUPRC across the datasets, the top two methods are the two `scDblFinder` variants (`r suppFig(increment=FALSE)`C). In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
+Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across real benchmark datasets, as measured by the area under the precision-recall (PR) curve (AUPRC) in classifying annotated doublets. Where there is sufficient data for training, `scDblFinder` is consistently the top performer, except for very simple datasets where most methods perform very well. Calculating the mean AUPRC across the datasets, the top two methods are the two `scDblFinder` variants (`r suppFig(increment=FALSE)`C). In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
 
-```{r benchmark1, fig.width=9.5, fig.height=5.8, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods with names in black are available through the scDblFinder package. Running times are indicated on the left. On top the number of cells in each dataset is shown, and colored by the proportion of variance explained by the first two components (relative to that explained by the first 100) as a rough guide to dataset complexity."}
+```{r benchmark1, fig.width=9.5, fig.height=5.8, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The size of the dots indicate the relative ranking for the dataset, and the numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods with names in black are available through the scDblFinder package. Running times are indicated on the left. On top the number of cells in each dataset is shown, and colored by the proportion of variance explained by the first two components (relative to that explained by the first 100), as a rough guide to dataset simplicity."}
 e <- readRDS("../benchmark/benchmark.results.rds")
 
 res <- readRDS("../analyses/optims_direct.rds")
@@ -225,18 +226,30 @@ e$AUPRC.rank <- apply(e[,1:2], 1, FUN=function(x) tr2[as.character(x[2]),as.char
 
 e$point.colour <- viridisLite::viridis(100)[round(100*e$AUPRC)]
 e$border.colour <- ifelse(e$AUPRC.rank>=(length(metmax)-0.5), "black", NA)
-# e$border.colour <- ifelse(e$AUPRC.rank>=(length(metmax)-1.5), 
-#                           ifelse(e$AUPRC.rank>=(length(metmax)-0.5), "red", "black"), NA)
 e$rounded <- round(e$AUPRC,2)
 e$text.colour <- ifelse(e$rounded>=0.5,"black","white")
 e$text.colour[e$AUPRC.rank==1] <- NA
+e$text <- gsub("1\\.00","1.0",gsub("0\\.",".",sprintf("%.2f",e$AUPRC)))
 
 nmeth <- length(unique(e$method))
 scdbl.methods <- c("scDblFinder.clusters","scDblFinder.random","directDblClassification","computeDoubletDensity")
-p1 <- ggplot(e, aes(dataset, method)) + geom_point(aes(colour=point.colour, size=AUPRC.rank^2)) +
-  scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
-  geom_text(aes(label=rounded, colour=text.colour), size=3) + geom_point(size=11, shape=21, aes(colour=border.colour)) +
-  scale_color_identity() + labs(size="AUPRC rank") +
+
+# # old version, rank as size
+# p1 <- ggplot(e, aes(dataset, method)) + geom_point(aes(colour=point.colour, size=AUPRC.rank^2)) +
+#   scale_size(range=c(4,11), breaks=c(1, (nmeth/2)^2, nmeth^2), labels=c("worst","","best")) +
+#   geom_text(aes(label=rounded, colour=text.colour), size=3) + geom_point(size=11, shape=21, aes(colour=border.colour)) +
+#   scale_color_identity() + labs(size="AUPRC rank") +
+#   theme(axis.text.x=element_text(angle=45, hjust=1),
+#         axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", 
+#                                  colour=ifelse(levels(e$method) %in% scdbl.methods,"black","grey30")), 
+#         axis.title.y=element_blank(), panel.grid=element_blank())
+
+p1 <- ggplot(e, aes(dataset, method)) + geom_point(aes(size=AUPRC, colour=AUPRC.rank)) + 
+  scale_size(range=c(4,10)) + 
+  scale_colour_viridis_c(breaks=c(1,10), labels=c("worst","best"), guide=guide_colorbar(barheight=unit(1, "cm"))) +
+  geom_point(data=e[e$AUPRC.rank==length(unique(e$method)),], shape=21, colour="black", aes(size=AUPRC), stroke=1.1, show.legend=FALSE) + 
+  geom_text(aes(label=text), size=3, colour=ifelse(e$AUPRC.rank>=5,"black","white")) + 
+  labs(colour="AUPRC rank") +
   theme(axis.text.x=element_text(angle=45, hjust=1),
         axis.text.y=element_text(hjust=0.5, size=10.5, face="bold", 
                                  colour=ifelse(levels(e$method) %in% scdbl.methods,"black","grey30")), 
@@ -257,15 +270,16 @@ m$dataset <- factor(row.names(m), names(datmax))
 p3 <- ggplot(m, aes(dataset, ncells, fill=ve)) + geom_col() + xlab("") + 
   theme(axis.text.x=element_blank()) + 
   viridis::scale_fill_viridis(option="B", direction=-1, breaks=range(m$ve), labels=c("Low","High"),
-                              name="Variance\nexplained\nby PC1&2\n") +
-  guides(fill=guide_colourbar(barheight=unit(1, "cm")))
+                              name="Dataset\nsimplicity\n") +
+  guides(fill=guide_colourbar(barheight=unit(1, "cm"))) +
+  scale_y_sqrt(breaks=c(1000,5000,10000,20000))
 
 #plot_grid(p2,p1,align="h", rel_widths=c(1,7))
 p <- ((plot_spacer()/p2+plot_layout(heights=c(1,3))) | (p3/p1+plot_layout(heights=c(1,3.5)))) + plot_layout(widths=c(1,7))
 
-pdf("Figure3.pdf", width=9.5, height=5.8)
-p
-dev.off()
+# pdf("Figure3.pdf", width=9.5, height=5.8)
+# p
+# dev.off()
 p
 ```
 
@@ -290,11 +304,11 @@ First, the doublets include also between-individual homotypic doublets, i.e. dou
 More importantly, SNPs-based labels do not include heterotypic doublets that are the result of the combination of different cell types from the same individual.
 It is therefore likely that the accuracy reported in the benchmark is below the actual one in detecting heterotypic doublets, and indeed datasets where there is a full correspondence between cell type and individual (such as the human-mouse mixtures hm-6k and hm-12k) typically have a much higher area under the Receiver-operator characteristic (ROC) and precision-recall (PR) curves (Figure \@ref(fig:benchmark1)).
 Based on the frequency of the different individuals and cell types in a dataset, it is possible to infer the expected rate of between-individual homotypic doublets and within-individual heterotypic doublets.
-This, in turn, enabled us to estimate the performance in identifying *heterotypic* doublets, as opposed to (inter-genotype) SNP-based doublets.
+This, in turn, enabled us to estimate the performance in identifying *heterotypic* doublets, as opposed to inter-individual but homotypic doublets.
 Figure \@ref(fig:adjustedPR)B shows such an analysis for a complex dataset from @kangMultiplexedDropletSinglecell2018 .
 The inflection point of the PR curve roughly coincides with the expected proportion of heterotypic doublets among those flagged as true doublets.
 
-```{r adjustedPR, fig.width=9, fig.height=4, fig.cap="**Doublet types and real accuracy of heterotypic doublet identification. A:** Cartoon representing the different types of doublets. Within-genotype heterotypic doublets will wrongly be labeled as false positives, and between-genotype homotypic will be labeled as false negatives. **B:** Adjusted PR curve for an example sample (GSM2560248). The two shaded areas represent the expected proportion of within-genotype heterotypic doublets (i.e. wrongly labeled as singlets in the annotation used as ground truth) and between-genotype homotypic doublets, respectively. The red dotted line indicates the random expectation, and the black dot indicates the threshold set by scDblFinder.", warning=FALSE}
+```{r adjustedPR, fig.width=9, fig.height=4, fig.cap="**Doublet types and real accuracy of heterotypic doublet identification. A:** Cartoon representing the different types of doublets. Within-individual heterotypic doublets will wrongly be labeled as false positives, and between-individual homotypic will be labeled as false negatives. **B:** Adjusted PR curve for an example sample (GSM2560248). The two shaded areas represent the expected proportion of within-individual heterotypic doublets (i.e. wrongly labeled as singlets in the annotation used as ground truth) and between-individual homotypic doublets, respectively. The red dotted line indicates the random expectation, and the black dot indicates the threshold set by scDblFinder.", warning=FALSE}
 e <- readRDS("data/GSM2560248_noAmbiguous.processed.CD.rds")
 # proportion homotypic doublets: these will be called as false negatives
 prop.homotypic <- propHomotypic(e$scDblFinder.cluster)
@@ -316,13 +330,13 @@ p <- plot_grid( dblTypesScheme(),
                 p2 + theme(legend.position="none"), 
                 scale=0.95, labels="AUTO")
 
-pdf("Figure4.pdf", width=9, height=4)
+# pdf("Figure4.pdf", width=9, height=4)
+# p
+# dev.off()
 p
-dev.off()
-
 ```
 
-Adjusting for both types of 'misannotation' (i.e. homotypic doublet and missed within-genotype doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in `r suppFig()`).
+Adjusting for both types of 'misannotation' (i.e. homotypic doublet and missed within-individual doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in `r suppFig()`).
 
 ## Flexible thresholding for doublet calling
 
@@ -529,9 +543,9 @@ p4 <- grid.grabExpr(draw(p4, merge_legends=FALSE,
 p <- plot_grid(plot_grid(p1, p3, nrow=1, labels="AUTO", scale=0.9), p4,
                nrow=2, labels=c(NA,"C"), rel_heights=c(3,2), scale=c(1,0.9))
 
-pdf("Figure5.pdf", width=9, height=7)
-p
-dev.off()
+# pdf("Figure5.pdf", width=9, height=7)
+# p
+# dev.off()
 p
 ```
 
@@ -552,9 +566,9 @@ p <- ggplot(res2, aes(dataset, value, fill=method)) +
   labs(x="Dataset", y="") + coord_flip() + 
   theme(legend.position="bottom")
 
-pdf("Figure6.pdf", width=8, height=4)
-p
-dev.off()
+# pdf("Figure6.pdf", width=8, height=4)
+# p
+# dev.off()
 p
 ```
 
@@ -608,9 +622,9 @@ s2$metric <- rep(c("AUROC","AUPRC"), each=nrow(stats))
 s2$value <- c(stats$AUROC, stats$AUPRC)
 p <- ggplot(s2, aes(method, value, fill=metric)) + geom_col(position=position_dodge()) + facet_wrap(~Dataset) + coord_flip()
 
-pdf("Figure7.pdf", width=7, height=3.5)
-p
-dev.off()
+# pdf("Figure7.pdf", width=7, height=3.5)
+# p
+# dev.off()
 p
 ```
 
@@ -703,9 +717,9 @@ p <- plot_grid(p1,
     nrow=1, rel_widths=c(3,3,1), scale=0.95, labels=c("C","D","")),
   nrow=2, rel_heights=c(2.1,3))
 
-pdf("Figure8.pdf", width=8, height=6)
-p
-dev.off()
+# pdf("Figure8.pdf", width=8, height=6)
+# p
+# dev.off()
 p
 ```
 
@@ -745,7 +759,7 @@ Dimension reduction is then performed on the union of real and artificial drople
 The network is then used to estimate a number of characteristics for each cell, in particular the proportion of artificial doublets among the nearest neighbors.
 Rather than selecting a specific neighborhood size, the ratio is calculated at different values of *k*, creating multiple predictors that will be used by the classifier.
 A distance-weighted ratio is also included.
-Further cell-level predictors are added, including: projections on principal components; library size; and co-expression scores [based on a variation of @baisScdsComputationalAnnotation2020].
+Further cell-level predictors are added, including: projections on principal components; library size; number of detected features; and co-expression scores [based on a variation of @baisScdsComputationalAnnotation2020].
 `scDblFinder` then trains gradient boosted trees to distinguish, based on these features, artificial doublets from real cells.
 Finally, a thresholding procedure decides the score at which to call a droplet by simultaneously minimizing the misclassification rate and the expected doublet rate (see [Thresholding]).
 
@@ -837,7 +851,7 @@ We used the scRNAseq benchmark datasets prepared by @xiBenchmarkingComputational
 
 ### Metrics
 
-The area under the PR or ROC curves were calculated using integral method, implemented in the `PRROC` package [@grauPRROCComputingVisualizing]. The adjusted AUPRC, meant to capture the AUPRC accounting for homotypic and within-genotype doublets, was calculated as the proportion of the unshaded area in Figure 3. Specifically, values were linearly scaled values so that an observed FDR of corresponding to the expected proportion of within-genotype doublets is set to 0, and that an observed TPR corresponding to one minus the expected proportion of homotypic doublets as an adjusted TPR of 1. Values were capped to be within a 0-1 range, and the area under the curve was calculated using trapezoid approximation. The expected proportion of homotypic doublets was estimated using the clusters from the fast clustering method described above (see [Fast clustering]).
+The area under the PR or ROC curves were calculated using integral method, implemented in the `PRROC` package [@grauPRROCComputingVisualizing]. The adjusted AUPRC, meant to capture the AUPRC accounting for homotypic and within-individual doublets, was calculated as the proportion of the unshaded area in Figure 3. Specifically, values were linearly scaled values so that an observed FDR of corresponding to the expected proportion of within-individual doublets is set to 0, and that an observed TPR corresponding to one minus the expected proportion of homotypic doublets as an adjusted TPR of 1. Values were capped to be within a 0-1 range, and the area under the curve was calculated using trapezoid approximation. The expected proportion of homotypic doublets was estimated using the clusters from the fast clustering method described above (see [Fast clustering]).
 
 The reported metrics are an average of the results of two runs using different random seeds.
 
