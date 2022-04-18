@@ -1,0 +1,41 @@
+---
+title: "Gathering summary facts about the datasets"
+author: "Pierre-Luc Germain"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scater)
+  library(scDblFinder)
+})
+```
+
+```{r}
+lf <- list.files("../benchmark/datasets", pattern="rds", full=TRUE)
+names(lf) <- gsub("\\.rds$","",basename(lf))
+m <- sapply(lf, FUN=function(x){
+  print(x)
+  e <- readRDS(x)
+  sce <- SingleCellExperiment(list(counts=e[[1]]))
+  sce <- logNormCounts(sce)
+  sce <- sce[head(order(-rowMeans(counts(sce))),1000),]
+  pca <- runPCA(t(logcounts(sce)), rank=100, BSPARAM= IrlbaParam())
+  reducedDim(sce, "PCA") <- pca$x[,1:20]
+  clusters <- fastcluster(sce)
+  c( ncells=ncol(e[[1]]), # number of cells
+     nbClust=length(unique(clusters)), # number of clusters
+     ve=sum(pca$sdev[1:2])/sum(pca$sdev) # variance explained by the first 2 components
+     )
+})
+saveRDS(as.data.frame(t(m)), file="../paper/data/dataset_desc.rds")
+```
+
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+

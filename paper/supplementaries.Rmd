@@ -47,10 +47,7 @@ vp <- function(e, aes, ..., hline=TRUE){
 
 ```{r, fig.width=8, fig.height=8}
 res <- readRDS("../analyses/optims_doubletGeneration.rds")
-res <- res[res$method!="mixNoResamp" & res$method!="mixA",]
-res$method <- factor(res$method, c("sum","mean","fullResamp","mixB"))
-levels(res$method)[3] <- "resampled sum"
-levels(res$method)[4] <- "mix"
+res$method <- gsub("fullResamp","resampled\nsum",res$method)
 p1 <- ggplot(res, aes(AUPRC.diff, method)) + geom_vline(xintercept=0, linetype="dashed") + 
   geom_violin(fill="lightgrey") + stat_summary() +
   labs(x="Difference to median AUPRC for the dataset", y="Artificial doublet generation")
@@ -193,7 +190,7 @@ plot_grid(p1, p2, nrow=2, labels="AUTO")
 
 ### `r getFigNb()`
 
-**Doublets and sites covered by more than two reads (scATACseq). A:** Number of loci covered by more than two reads in annotated singlets and doublets in each dataset. **B:** Relationship between library size and the number of loci covered by more than two reads.
+**Doublets and sites covered by more than two reads (scATACseq). A:** Number of loci covered by more than two reads in annotated singlets and doublets in each dataset. **B:** Relationship between library size and the number of loci covered by more than two reads. True doublets are plotted in red.
 
 
 

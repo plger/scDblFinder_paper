@@ -41,22 +41,16 @@ ll <- lapply(ll, FUN=function(sce){
 ```
 
 
-```{r, cache=TRUE}
-res <- runParams(ll, list(halfSize=c(0,0.25), adjustSize=c(0,0.25), resamp=c(0,0.25)), BPPARAM=cpus)
-saveRDS(res, file="optims_doubletGeneration2.rds")
-res2 <- readRDS("optims_doubletGeneration2.rds")
-ggplot(res2, aes(factor(resamp), AUPRC.diff)) + geom_violin() + facet_grid(halfSize~adjustSize)
-
-eg <- data.frame(row.names=c("sum","mean","mixA","mixB","mixC","fullResamp","mixNoResamp"),
-                 halfSize=c(0,1,0.25,0,0,0,0.25),
-                 resamp=c(0,0,0.25,0.25,0.15,1,0),
-                 adjustSize=c(0,0,0.25,0.25,0,0,0) )
+```{r}
+eg <- data.frame(row.names=c("sum","mean","mix10%","mix25%","complex","fullResamp"),
+                 halfSize=c(0,1,0.1,0.25,0.1,0),
+                 resamp=c(0,0,0.1,0.25,0.25,1),
+                 adjustSize=c(0,0,0.1,0.25,0.1,0) )
 pnames <- setNames(row.names(eg),apply(eg,1,collapse="|",paste))
 eg <- cbind(seeds=rep(c(1234, 42),nrow(eg)), eg[rep(1:nrow(eg),each=2),])
 res <- runParams(ll, list(), eg2=eg, BPPARAM=cpus)
 res$method <- pnames[paste(res$halfSize,res$resamp,res$adjustSize,sep="|")]
-saveRDS(res, file="optims_doubletGeneration3.rds")
-res <- readRDS("optims_doubletGeneration3.rds")
+saveRDS(res, file="optims_doubletGeneration.rds")
 ```
 
 
@@ -64,11 +58,6 @@ res <- readRDS("optims_doubletGeneration3.rds")
 library(ggplot2)
 ggplot(res, aes(AUPRC.diff, method)) + geom_violin() + geom_boxplot(width=0.1)
 ```
-```{r}
-res <- res[res$method!="mixC",]
-saveRDS(res, "optims_doubletGeneration.rds")
-```
-
 
 # Session info
 

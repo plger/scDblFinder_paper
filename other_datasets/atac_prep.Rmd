@@ -1,0 +1,185 @@
+---
+title: "ATAC"
+author: "Pierre-Luc Germain"
+date: "2/23/2021"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scuttle)
+  library(Matrix)
+  library(mbkmeans)
+  library(BiocSingular)
+  library(ggplot2)
+  library(scDblFinder)
+})
+source("../../plotROCs.R")
+rescaleAmulet <- function(x){
+  mx <- min(x)
+  (x-mx)/(1-mx)
+}
+```
+
+
+```{r}
+sce <- readRDS("GSE162690/Low.SCE.rds")
+assayNames(sce) <- "counts"
+amulet <- read.delim("GSE162690/LowLoading.amuletReimplementation.tab", header=FALSE, row.names=1)
+sce$amulet.py <- 1-amulet[colnames(sce),3]
+sce <- scDblFinder(sce, nfeatures=2000)
+sce$scDblFinder.raw <- sce$scDblFinder.score
+sce <- scDblFinder(sce, clusters=TRUE, aggregateFeatures=TRUE, nfeatures=25, 
+                   processing="normFeatures")
+sce$scDblFinder.agg <- sce$scDblFinder.score
+CD1 <- as.data.frame(colData(sce))
+CD1$combined.rank <- rowMeans(cbind(
+  rank(CD1$amulet.py, ties="average"),
+  rank(CD1$scDblFinder.agg, ties="average")))
+CD1$isDbl <- CD1$DemuxletClassify=="DBL"
+CD1$combined.p <- 1-apply(1-cbind(CD1$amulet.py,CD1$scDblFinder.agg), 1, FUN=function(x){
+  suppressWarnings(aggregation::fisher(x)) })
+CD1$combined.p2 <- 1-apply(1-cbind(CD1$amulet.py,CD1$scDblFinder.agg), 1, FUN=function(x){
+  suppressWarnings(as.numeric(metap::sumz(x)$p)) })
+CD1$combined.p2[is.na(CD1$combined.p2)] <- 1
+
+sce <- readRDS("GSE162690/High.SCE.rds")
+assayNames(sce)[1] <- "counts"
+amulet <- read.delim("GSE162690/amulet_highloading.txt", header=TRUE, row.names=1)
+sce$amulet.py <- 1-amulet[colnames(sce),"p.value"]
+sce <- scDblFinder(sce, nfeatures=2000)
+sce$scDblFinder.raw <- sce$scDblFinder.score
+sce <- scDblFinder(sce, clusters=TRUE, aggregateFeatures=TRUE, nfeatures=25, 
+                   processing="normFeatures")
+sce$scDblFinder.agg <- sce$scDblFinder.score
+CD2 <- as.data.frame(colData(sce))
+CD2$combined.rank <- rowMeans(cbind(
+  rank(CD2$amulet.py, ties="average"),
+  rank(CD2$scDblFinder.agg, ties="average")))
+CD2$combined.p <- 1-apply(1-cbind(CD2$amulet.py,CD2$scDblFinder.agg), 1, FUN=function(x){
+  x[x==1] <- 0.9999
+  suppressWarnings(aggregation::fisher(x)) })
+CD2$combined.p2 <- 1-apply(1-cbind(CD2$amulet.py,CD2$scDblFinder.agg), 1, FUN=function(x){
+  suppressWarnings(as.numeric(metap::sumz(x)$p)) })
+CD2$combined.p2[is.na(CD2$combined.p2)] <- 1
+CD2$isDbl <- CD2$DemuxletClassify=="DBL"
+
+plotROCs(CD1[,c("amulet.py","scDblFinder.raw","scDblFinder.agg","DoubletEnrichment","combined.rank","combined.p2","combined.p")], CD1$isDbl, fdr=TRUE)
+plotROCs(CD2[,c("amulet.py","scDblFinder.raw","scDblFinder.agg","DoubletEnrichment","combined.rank","combined.p2","combined.p")], CD2$isDbl, fdr=TRUE)
+```
+
+```{r}
+sce <- readRDS("GSM5457171/GSM5457171.SCE.rds")
+archr <- readRDS("GSM5457171/archR_dbl_scores.rds")
+row.names(archr) <- gsub("^amulet#","",row.names(archr))
+colData(sce)$DoubletEnrichment <- archr[colnames(sce),"DoubletEnrichment"]
+amulet <- read.delim("GSM5457171/GSM5457171_amulet.txt", header=TRUE, row.names=1)
+sce$amulet.py <- 1-amulet[colnames(sce),"p.value"]
+sce <- scDblFinder(sce, nfeatures=2000)
+sce$scDblFinder.raw <- sce$scDblFinder.score
+sce <- scDblFinder(sce, clusters=TRUE, aggregateFeatures=TRUE, nfeatures=25, 
+                   processing="normFeatures")
+sce$scDblFinder.agg <- sce$scDblFinder.score
+
+w <- which(sce$vireo.prob_doublet<0.1 | sce$vireo.prob_doublet>0.9)
+CD3 <- as.data.frame(colData(sce[,w]))
+CD3$combined.rank <- rowMeans(cbind(
+  rank(CD3$amulet.py, ties="average"),
+  rank(CD3$scDblFinder.agg, ties="average")))
+CD3$combined.p <- 1-apply(1-cbind(CD3$amulet.py,CD3$scDblFinder.agg), 1, FUN=function(x){
+  suppressWarnings(aggregation::fisher(x)) })
+CD3$combined.p2 <- 1-apply(1-cbind(CD3$amulet.py,CD3$scDblFinder.agg), 1, FUN=function(x){
+  suppressWarnings(as.numeric(metap::sumz(x)$p)) })
+CD3$combined.p2[is.na(CD3$combined.p2)] <- 1
+
+CD3$isDbl <- CD3$vireo.prob_doublet > 0.5
+
+plotROCs(CD3[,c("amulet.py","scDblFinder.raw","scDblFinder.agg","combined.rank","combined.p2","combined.p")], CD3$isDbl, fdr=TRUE)
+
+```
+
+
+```{r}
+ld <- list(GSM4957262=CD1, GSM4957261=CD2, 
+           GSM5457171=CD3)
+saveRDS(ld, "ATAC_CellDat.rds")
+```
+
+
+## Add overlap-based methods
+
+Get the overlaps:
+
+```{r, eval=FALSE}
+rep <- import("/reference/Homo_sapiens/hg19_repeats.bed")
+rep <- c(rep,
+         GRanges(c("M","chrM","MT","X","Y","chrX","chrY"),
+                                  IRanges(1L,width=10^8)))
+samples <- c(
+  HighLoading="../../atac/archr/GSE162690_CellLine_HighLoading.fragments.tsv.gz",
+  LowLoading="../../atac/archr/GSE162690_CellLine_LowLoading.fragments.tsv.gz",
+  GSM5457171="../../atac/GSM5457171/frags.sorted-Reformat.tsv.gz"
+)
+
+d <- dplyr::bind_rows(lapply(samples, FUN=function(x){
+  getFragmentOverlaps(x, regionsToExclude=rep, fullInMemory=TRUE)
+}), .id="dataset")
+saveRDS(d, "atac_overlapCounts.rds")
+```
+
+Add truth to ov table:
+
+```{r}
+ov <- readRDS("atac_overlapCounts.rds")
+ov$barcode <- gsub("\\..+","",row.names(ov))
+ov$dataset <- factor(ov$dataset)
+levels(ov$dataset)[2:3] <- c("GSM4957261","GSM4957262")
+w <- which(ov$dataset=="GSM5457171")
+ov$truth <- NA
+ov$truth[w] <- ld$GSM5457171[ov$barcode[w], "isDbl"]
+w <- which(ov$dataset=="GSM4957261")
+ov$truth[w] <- ld$GSM4957261[ov$barcode[w],"isDbl"]
+w <- which(ov$dataset=="GSM4957262")
+ov$truth[w] <- ld$GSM4957262[ov$barcode[w],"isDbl"]
+```
+
+Add other scores:
+
+```{r}
+fields <- c("DoubletEnrichment", "amulet.py", "scDblFinder.raw", "scDblFinder.agg", "combined.p", "combined.p2")
+for(f in fields) ov[[f]] <- NA_real_
+ov$amulet.R <- NA_real_
+for(lvl in levels(ov$dataset)){
+  w <- which(ov$dataset==lvl)
+  ov$amulet.R[w] <- 1-ppois(ov$nAbove2[w], mean(ov$nAbove2[w]), lower.tail=FALSE)
+  for(f in fields) ov[[f]][w] <- ld[[lvl]][ov$barcode[w],f]
+}
+ov <- ov[!is.na(ov$truth),]
+```
+
+Add clamulet:
+
+```{r, eval=FALSE}
+ds <- lapply(samples, FUN=function(x){
+  st <- system.time(d <- scDblFinder:::clamulet(x, regionsToExclude=rep, returnAll=TRUE))
+  gc(full=TRUE)
+  list(d=d, elapsed=st)
+})
+saveRDS(ds, "clamulet2.rds")
+```
+
+```{r}
+ds <- readRDS("clamulet2.rds")
+names(ds)[1:2] <- c("GSM4957261","GSM4957262")
+ov$clamulet <- NA_real_
+for(f in levels(ov$dataset)){
+  w <- which(ov$dataset==f)
+  ov$clamulet[w] <- ds[[f]]$d[ov$barcode[w],"score"]
+}
+```
+
+```{r}
+saveRDS(ov, "atac.results.rds")
+```
+

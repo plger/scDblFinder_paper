@@ -107,7 +107,7 @@ saveRDS(res, file="optims_iter.rds")
 # Hyper-parameters
 
 ```{r, cache=TRUE}
-pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(4:7))
+pars <- list( nrounds=list(NULL, 0.25, 1, 5, 10, 20), max_depth=as.list(3:7))
 res <- runParams(ll, pars, BPPARAM=cpus)
 saveRDS(res, file="optims_hyperparams.rds")
 ```
