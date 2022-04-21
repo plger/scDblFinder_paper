@@ -6,6 +6,7 @@ author:
   - name: Aaron Lun
     affiliation: Genentech Inc., South San Francisco, CA USA
   - name: Carlos Garcia Meixide
+    affiliation: ETH Zuerich, Switzerland
   - name: Will Macnair
     affiliation: F. Hoffmann-LaRoche Ltd, Roche Innovation Center Basel
   - name: Mark D. Robinson
@@ -203,7 +204,7 @@ We found that 2-3 iterations provided the best performance (`r suppFig(increment
 A previous version of `scDblFinder` was already evaluated in an independent benchmark [see @xiProtocolExecutingBenchmarking2021, the protocol and addendum to the original study, @xiBenchmarkingComputationalDoubletDetection2021], where it was found superior to existing alternatives across a variety of metrics.
 Here we reproduced this benchmark using the most recent versions of the packages, and including variant methods from the `scDblFinder` package (among which the updated version of `r Biocpkg("scran")`'s original method, and now available in the `scDblFinder` package as `computeDoubletDensity`). In addition, we included the new method `Chord` [@xiongChordIdentifyingDoublets2021], which also combines different strategies.
 
-Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across real benchmark datasets, as measured by the area under the precision-recall (PR) curve (AUPRC) in classifying annotated doublets. Where there is sufficient data for training, `scDblFinder` is consistently the top performer, except for very simple datasets where most methods perform very well. Calculating the mean AUPRC across the datasets, the top two methods are the two `scDblFinder` variants (`r suppFig(increment=FALSE)`C). In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
+Figure \@ref(fig:benchmark1) compares the performance of `scDblFinder` to alternatives across real benchmark datasets, as measured by the area under the precision-recall (PR) curve (AUPRC) in classifying annotated doublets. `scDblFinder` is the top performer, except for very simple datasets where most methods perform very well, and one dataset where they all perform badly (and which we suspect not to have enough data for training). Calculating the mean AUPRC across the datasets, the top two methods are the two `scDblFinder` variants (`r suppFig(increment=FALSE)`C). In addition, `scDblFinder` runs at a fraction of the time required by the next best methods (Figure \@ref(fig:benchmark1), left).
 
 ```{r benchmark1, fig.width=9.5, fig.height=5.8, fig.cap="**Benchmark.** Accuracy (area under the precision and recall curve) of doublet identification using alternative methods across 16 benchmark datasets. The colour of the dots indicates the relative ranking for the dataset, while the size and numbers indicate the actual area under the (PR) curve. For each dataset, the top method is circled in black. Methods with names in black are provided in the scDblFinder package. Running times are indicated on the left. On top the number of cells in each dataset is shown, and colored by the proportion of variance explained by the first two components (relative to that explained by the first 100), as a rough guide to dataset simplicity."}
 e <- readRDS("../benchmark/benchmark.results.rds")
@@ -304,9 +305,9 @@ The observed impact of the iterative procedure (`r suppFig(increment=FALSE)`B) h
 Another important difference is that while `bcds` trains directly on the expression matrix, `scDblFinder` works chiefly on features of the kNN network.
 Since artificial doublet creation can only approximate real doublets, we hypothesized that these differences are more likely to be apparent in the expression matrix than in the highly summarized set of features used by `scDblFinder`, and that this could lead to overfitting on the artificial problem.
 Indeed, a risk of classifier-based approaches is that the problem on which the classifier is trained, namely distinguishing _artificial_ doublets from _real_ droplets, slightly differs from the real problem on which they are expected to function (distinguishing _real_ doublets from _real_ singlets).
-To investigate this hypothesis of overfitting due, we implemented a version of `scDblFinder` without the dimensional reduction and kNN steps, and training the classifier directly on the expression of the selected genes.
-This resulted in a reduction in area under the precision and recall curve (AUPRC) in real datasets (see [Direct classification]; see also Figure \@ref(fig:benchmark1) and `r suppFig()`).
-We therefore conclude that, while dimensional reduction and kNN summarization arguably involve a loss of information, it nevertheless increases accuracy (in addition to considerably reducing computing time), presumably by preventing overfitting.
+To investigate this hypothesis of overfitting, we implemented a version of `scDblFinder` without the dimensionality reduction and kNN steps, and training the classifier directly on the expression of the selected genes (see [Direct classification]).
+This resulted in a reduction in area under the precision and recall curve (AUPRC) in real datasets (see also Figure \@ref(fig:benchmark1) and `r suppFig()`).
+We therefore conclude that, while dimensionality reduction and kNN summarization arguably involve a loss of information, it nevertheless increases accuracy (in addition to considerably reducing computing time), presumably by preventing overfitting.
 
 ## scDblFinder identifies most heterotypic doublets
 
