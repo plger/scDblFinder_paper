@@ -28,19 +28,22 @@ suppressPackageStartupMessages({
   library(patchwork)
   library(scDblFinder)
   library(SingleCellExperiment)
+  library(scater)
 })
 theme_set(theme_minimal())
 source("../misc.R")
 
-vp <- function(e, aes, ..., hline=TRUE){
+vp <- function(e, aes, ..., hline=TRUE, points=TRUE, selColor="blue"){
   p <- ggplot(e, aes)
   if(hline) p <- p + geom_hline(yintercept=0, linetype="dashed")
-  p + geom_violin(...) + 
-    stat_summary(fun.data = "mean_cl_boot", geom = "pointrange")
+  p <- p + geom_violin(scale="width", ...)
+  if("fill" %in% names(aes) && !is.na(selColor) && as_label(aes[["fill"]])=="selected")
+    p <- p + scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"=selColor), guide="none")
+  if(points) p <- p + 
+    geom_point(shape=4, position=position_dodge2(width=0.25), alpha=.3)
+  p + stat_summary(fun.data="mean_cl_boot", geom="pointrange", lwd=0.8)
 }
 ```
-
-
 
 
 # `r getFigNb(TRUE)`
@@ -48,12 +51,13 @@ vp <- function(e, aes, ..., hline=TRUE){
 ```{r, fig.width=8, fig.height=8}
 res <- readRDS("../analyses/optims_doubletGeneration.rds")
 res$method <- gsub("fullResamp","resampled\nsum",res$method)
-p1 <- ggplot(res, aes(AUPRC.diff, method)) + geom_vline(xintercept=0, linetype="dashed") + 
-  geom_violin(fill="lightgrey") + stat_summary() +
-  labs(x="Difference to median AUPRC for the dataset", y="Artificial doublet generation")
+res$selected <- res$method=="mix25%"
+p1 <- vp(res, aes(method, AUPRC.diff, fill=selected)) + 
+  labs(y="Difference to median AUPRC for the dataset", x="Artificial doublet generation")
 
 res <- readRDS("../analyses/optims_iter.rds")
-p2 <- vp(res, aes(iter, AUPRC.diff), fill="lightgrey") +
+res$selected <- res$iter==3
+p2 <- vp(res, aes(iter, AUPRC.diff, fill=selected)) +
   labs(y="Difference to median AUPRC for the dataset",
        x="Number of iterations")
 
@@ -74,14 +78,14 @@ ggplot(ag, aes(reorder(method,AUPRC), AUROC)) + geom_col(fill="lightgrey") + coo
   labs(x="", y="mean AUROC") + theme(axis.text.y=element_text(hjust=0.5, colour="black"), plot.margin=margin(0,0,0,0))
 
 plot_grid(
-  plot_grid(p1 + coord_flip(), p2, labels="AUTO", scale=0.95, nrow=1),
+  plot_grid(p1, p2, labels="AUTO", scale=0.95, nrow=1),
   p3, labels=c(NA,"C"), scale=c(1,0.95), nrow=2 )
 ```
 
 
 ### `r getFigNb()`
 
-**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method. In **A-B**, the violins represent the distribution (as well as mean and standard error), across benchmark datasets, of differences to the median (across method) AUPRC for the dataset (higher is better).
+**Artificial doublet generation and iterative classification. A:** Effect of different methods of artificial doublet generation on the performance of `scDblFinder` across the 16 benchmark datasets. `sum` and `mean` respectively indicate the sum or mean of the counts of the two cells, `resampled sum` indicates the sum followed by Poisson resampling, and `mix` indicates the mixture of approaches. **B:** Effect of the number of iterations on the accuracy. At each round, the real cells identified as doublets are removed from the training data for the next round. **C:** Average area under the ROC and PR curves across datasets for each method. In **A-B**, the violins represent the distribution (as well as mean and standard error), across benchmark datasets (and two random seeds), of differences to the median (across method) AUPRC for the dataset (higher is better). The default parameters selected are shown in blue.
 
 
 
@@ -101,9 +105,13 @@ rs <- rowsum(res[,c("AUPRC","AUROC")],res$dataset)/(nrow(res)/length(unique(res$
 tmp <- res[,c("AUPRC","AUROC")]-rs[as.character(res$dataset),]
 colnames(tmp) <- paste0(colnames(tmp),".diff")
 res <- cbind(res, tmp)
-plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() +
-  vp(res, aes(processing, AUROC.diff), fill="lightgrey") + xlab("") + coord_flip(),
-  vp(res, aes(processing, elapsed), fill="lightgrey") + ylab("Running time (s)") + scale_y_log10(),
+res$selected <- res$processing=="scDblFinder"
+plot_grid(
+  vp(res, aes(processing, AUPRC.diff, fill=selected)) + coord_flip() +
+  vp(res, aes(processing, AUROC.diff, fill=selected)) + xlab("") + 
+    coord_flip() + theme(axis.text.y=element_blank()),
+  vp(res, aes(processing, elapsed, fill=selected), hline=FALSE) + 
+    ylab("Running time (s)") + scale_y_log10(),
   labels="AUTO", nrow=2, rel_heights=c(4,3))
 ```
 
@@ -112,7 +120,7 @@ plot_grid(vp(res, aes(processing, AUPRC.diff), fill="lightgrey") + coord_flip() 
 **Direct classification vs classifying on the kNN features.**
 The standard `scDblFinder` method is compared to training a classifier directly on the features (implemented in the package's `directDblClassification` function), either using the PCA ('default'), the normalized ('normFeatures') or the raw counts ('rawFeatures', default).
 In all cases, the doublet generation, number of features and iterative procedure is the same.
-`scDblFinder` (i.e. working on the kNN) has a better AUPRC (A, left) at a considerably greater speed than gene-based classifiers (B). Direct classification based on the raw features however had a slightly better AUROC.
+`scDblFinder` (i.e. working on the kNN) has a better AUPRC (A, left) at a considerably greater speed than gene-based classifiers (B). Direct classification based on the raw features however had a slightly better AUROC. (See Supplementary Figure 1 for a description of the general figure format.)
 
 
 \newpage
@@ -330,8 +338,10 @@ res <- readRDS("../analyses/optims_hyperparams.rds")
 res$nrounds <- factor(res$nrounds)
 res$nrounds <- factor(res$nrounds, c("5","10","20","","0.25","1"))
 levels(res$nrounds) <- c("5 rnds","10 rnds","20 rnds","top","top-0.25*SD","top-1SD")
-p1 <- vp(res, aes(max_depth, AUPRC.diff), fill="lightgrey")
-p2 <- vp(res[res$max_depth==4,], aes(nrounds, AUPRC.diff), fill="lightgrey")
+res$selected <- res$max_depth==4
+p1 <- vp(res[res$nrounds=="top-0.25*SD",], aes(max_depth, AUPRC.diff, fill=selected))
+res$selected <- res$nrounds=="top-0.25*SD"
+p2 <- vp(res[res$max_depth==4,], aes(nrounds, AUPRC.diff, fill=selected))
 plot_grid(p1,p2,labels="AUTO",nrow=2)
 ```
 
@@ -339,7 +349,7 @@ plot_grid(p1,p2,labels="AUTO",nrow=2)
 ### `r getFigNb()`
 
 **Hyperparameter optimization:** max tree depth (A) and number of boosting rounds (B).
-'Top' indicates the optimal number of rounds according to cross-validation logloss in the real vs artificial classification.
+'Top' indicates the optimal number of rounds according to cross-validation logloss in the real vs artificial classification. 'Top-1SD' and 'Top-0.25*SD' indicate respectively 1 and 0.25 standard deviations before the optimal round.
 
 \newpage
 
@@ -349,17 +359,14 @@ plot_grid(p1,p2,labels="AUTO",nrow=2)
 res <- readRDS("../analyses/optims_nfeats.rds")
 res$nfeatures <- factor(res$nfeatures, sort(as.integer(unique(res$nfeatures))))
 res$selected <- res$nfeatures=="1000"
-p1 <- vp(res, aes(nfeatures, AUPRC.diff), aes(fill=selected)) + 
-  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+p1 <- vp(res, aes(nfeatures, AUPRC.diff, fill=selected)) + 
   labs(x="Number of features used", y="Difference in AUPRC") +
-  vp(res, aes(nfeatures, elapsed), aes(fill=selected), hline=FALSE) +
-  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+  vp(res, aes(nfeatures, elapsed, fill=selected), hline=FALSE) +
   labs(x="Number of features used", y="Running time (s)")
 
 res <- readRDS("../analyses/optims_clustCor.rds")
 res$selected <- res$clustCor==""
-p2 <- vp(res, aes(clustCor, AUPRC.diff), aes(fill=selected)) + 
-  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+p2 <- vp(res, aes(clustCor, AUPRC.diff, fill=selected)) + 
   labs(x="Number of markers used for correlation", y="Difference in AUPRC") # +
   # vp(res, aes(clustCor, elapsed), fill="lightgray", hline=FALSE) +
   # labs(x="Number of markers used for correlation", y="Difference in AUPRC")
@@ -367,8 +374,7 @@ p2 <- vp(res, aes(clustCor, AUPRC.diff), aes(fill=selected)) +
 res <- readRDS("../analyses/optims_PCs.rds")
 res$nPCs <- sapply(strsplit(res$includePCs,", "), FUN=function(x) max(as.integer(x)))
 res$selected <- res$nPCs=="10"
-p3 <- vp(res, aes(factor(nPCs), AUPRC.diff), aes(fill=selected)) +
-  scale_fill_manual(values=c("FALSE"="lightgrey", "TRUE"="blue"), guide=FALSE) +
+p3 <- vp(res, aes(factor(nPCs), AUPRC.diff, fill=selected)) +
   labs(x="Number of principal components used in training", y="Difference in AUPRC")
 ```
 
