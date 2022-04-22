@@ -48,7 +48,7 @@ wrap <- function(x, method){
     )
 }
 
-scores2 <- lapply(datasets, FUN=function(x){
+scores <- lapply(datasets, FUN=function(x){
   x <- x[[1]]
   lapply(setNames(methods, methods), FUN=function(method){
     tryCatch({
@@ -83,6 +83,7 @@ res <- dplyr::bind_rows(lapply(setNames(names(scores),names(scores)),
 }), .id="dataset")
 saveRDS(as.data.frame(res), file="benchmark.results.rds")
 ```
+
 
 ```{r}
 sessionInfo()

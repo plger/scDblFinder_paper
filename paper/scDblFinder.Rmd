@@ -894,27 +894,27 @@ For more details, see the package's <a href="https://bioconductor.org/packages/d
 
 The source code is available from: https://github.com/plger/scDblFinder 
 
-Archived source code at time of publication: https://doi.org/10.6084/m9.figshare.16543518.v1
+Archived source code at time of publication: https://doi.org/10.6084/m9.figshare.16543518
 
 The software is released under the GNU Public License (GPL-3).
 
 # Extended data
 
-https://doi.org/10.6084/m9.figshare.16617571.v1
+https://doi.org/10.6084/m9.figshare.16617571
 
 This repository contains the following extended data:
 
-* Supplementary Figures (see Extended Data - Figures 1-10)
+* Supplementary Figures (see Extended Data - Figures 1-11)
 
 Data are available under the terms of the Creative Commons BY 4.0 license.
 
 # Underlying data
 
-https://doi.org/10.6084/m9.figshare.16543518.v1
+https://doi.org/10.6084/m9.figshare.16543518
 
 This repository contains the following underlying data:
 
-* scDblFinder 1.7.4 (archived software version used in the paper)
+* scDblFinder 1.9.12 (archived software version used in the paper)
 * scDblFinder_paper (code to reproduce the analyses and figures) 
 
 The code to reproduce the analyses and figures is additionally available at https://github.com/plger/scDblFinder_paper
