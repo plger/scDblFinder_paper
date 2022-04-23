@@ -349,7 +349,7 @@ p <- plot_grid( dblTypesScheme(),
 p
 ```
 
-Adjusting for both types of 'misannotation' (i.e. homotypic doublet and missed within-individual doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*d$x-prop.intraind)`\% (a similar analysis for a different sample is shown in `r suppFig()`).
+Adjusting for both types of 'misannotation' (i.e. homotypic doublet and missed within-individual doublets), the area under the PR curve is considerably better (0.82 instead of 0.64), and at the automatic threshold we estimate that `r round(d$y/(1-prop.homotypic)*100)`\% of heterotypic doublets can be identified with a real FDR of `r round(100*(d$x-prop.intraind))`\% (a similar analysis for a different sample is shown in `r suppFig()`).
 
 ## Flexible thresholding for doublet calling
 
