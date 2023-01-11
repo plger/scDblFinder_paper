@@ -1,0 +1,105 @@
+---
+title: "Running methods and computing performance metrics for normal vs sctransform"
+author: "Pierre-Luc Germain"
+date: "2023/01/09"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scDblFinder)
+  library(sctransform)
+})
+```
+
+
+```{r}
+datasets <- list.files("datasets", pattern="\\.rds$", full=TRUE)
+names(datasets) <- gsub("\\.rds$","",basename(datasets))
+methods <- c('scDblFinder.clusters','scDblFinder.random',
+             "scDblFinder.sctransform", "scDblFinder.HVGsctransform")
+datasets <- lapply(datasets, readRDS)
+
+nfeatures=1352 # scDblFinder default
+
+sct1 <- function(x){
+  sce <- SingleCellExperiment(list(counts=x))
+  vst1 <- sctransform::vst(counts(sce), n_cells=min(ncol(sce),5000), verbosity=0)
+  sce <- sce[row.names(vst1$y),]
+  logcounts(sce) <- vst1$y
+  hvg <- row.names(sce)[head(order(vst1$gene_attr$residual_variance, decreasing=TRUE), nfeatures)]
+
+  # define a processing function that scDblFinder will use on the real+artificial doublets;
+  # the input should be a count matrix and the number of dimensions, and the output a PCA matrix
+  
+  myfun <- function(e, dims){
+    # we use the thetas calculated from the first vst on real cells
+    e <- e[intersect(row.names(e), row.names(vst1$model_pars_fit[which(!is.na(vst1$model_pars_fit[,"theta"])),])),]
+    vst2 <- sctransform::vst(e, n_cells=min(ncol(e),5000), method="nb_theta_given", 
+                             theta_given=vst1$model_pars_fit[row.names(e),"theta"],
+                             min_cells=1L, verbosity=0)
+    scater::calculatePCA(vst2$y, ncomponents=dims)
+  }
+  
+  scDblFinder(sce, processing=myfun, nfeatures=hvg)
+}
+
+sct2 <- function(x){
+  vst1 <- sctransform::vst(x, n_cells=min(ncol(x),5000), verbosity=0)
+  hvg <- row.names(x)[head(order(vst1$gene_attr$residual_variance, decreasing=TRUE),nfeatures)]
+  scDblFinder(x, clusters=FALSE, nfeatures=hvg)
+}
+
+
+wrap <- function(x, method){
+  switch(method,
+      "scDblFinder.clusters"=scDblFinder(x, clusters=TRUE)$scDblFinder.score,
+      "scDblFinder.random"=scDblFinder(x, clusters=FALSE)$scDblFinder.score,
+      "scDblFinder.sctransform"=sct1(x)$scDblFinder.score,
+      "scDblFinder.HVGsctransform"=sct2(x)$scDblFinder.score
+    )
+}
+
+scores <- lapply(datasets, FUN=function(x){
+  x <- x[[1]]
+  lapply(setNames(methods, methods), FUN=function(method){
+    tryCatch({
+      # average across 2 seeds:
+      set.seed(42)
+      st1 <- system.time( sco1 <- wrap(x, method) )
+      set.seed(1234)
+      st2 <- system.time( sco2 <- wrap(x, method) )
+      list(scores=rowMeans(cbind(sco1,sco2),na.rm=TRUE),
+           time=rowMeans(cbind(st1,st2),na.rm=TRUE))
+    }, error=function(e){
+      warning("Error running ", method,":\n", e)
+      list(scores=rep(NA_real_, ncol(x)), st=NA)
+    })
+  })
+})
+saveRDS(scores, file="sctransform_scores.rds")
+```
+
+```{r}
+scores <- readRDS("sctransform_scores.rds")
+true_labels <- lapply(datasets, FUN=function(x) as.integer(x[[2]]=='doublet'))
+
+res <- dplyr::bind_rows(lapply(setNames(names(scores),names(scores)), 
+                               FUN=function(ds){
+  truth <- true_labels[[ds]]
+  dplyr::bind_rows(lapply(scores[[ds]], FUN=function(x){
+    s <- split(x$scores, truth)
+    c(AUPRC=mean(as.numeric(PRROC::pr.curve(s[[2]], s[[1]])[2:3])),
+      AUROC=PRROC::roc.curve(s[[2]], s[[1]])[[2]],
+      elapsed=as.numeric(unlist(x$time["elapsed"])))
+  }), .id="method")
+}), .id="dataset")
+saveRDS(as.data.frame(res), file="benchmark.sctransform.rds")
+```
+
+
+```{r}
+sessionInfo()
+```
+

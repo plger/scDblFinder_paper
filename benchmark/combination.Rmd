@@ -1,0 +1,55 @@
+---
+title: "Combination"
+output: html_document
+date: "2022-12-15"
+---
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(ComplexHeatmap)
+  library(ggplot2)
+})
+```
+
+```{r}
+e <- readRDS("../benchmark/scores.rds")
+lf <- list.files("datasets", pattern="rds$", full=TRUE)
+names(lf) <- gsub("\\.rds$","",basename(lf))
+d <- lapply(lf, FUN=readRDS)
+truth <- lapply(d, FUN=function(x) x[[2]]=="doublet")
+rm(d)
+```
+
+```{r}
+auc <- sapply(names(truth), FUN=function(n){
+  sc <- lapply(e[[n]], FUN=function(x) x[[1]])
+  sc$combn.fisher <- 1-apply(cbind(sc$scDblFinder.random, sc$DoubletFinder), 1, FUN=function(x){
+    suppressWarnings( aggregation::fisher(1-x) ) })
+  sc$combn.mean <- rowMeans(cbind(sc$scDblFinder.random, sc$DoubletFinder))
+  y <- truth[[n]]
+  sapply(sc, FUN=function(x) mean(as.numeric(PRROC::pr.curve(x[which(y)], x[which(!y)])[2:3])))
+})
+auc <- auc[order(rowMeans(auc)),order(colMeans(auc))]
+saveRDS(auc, "combinations.AUC.rds")
+```
+
+
+```{r, fig.width=6, fig.height=4}
+auc1 <- t(matrix(round(auc, 2), nrow=nrow(auc)))
+auc2 <- t(scale(auc))
+colnames(auc2)[8:9] <- paste0(c("fisher(", "mean("), "   \nscDblFinder.random,\nDoubletFinder )")
+ComplexHeatmap::Heatmap(auc2, cluster_rows=FALSE, cluster_columns=FALSE)
+ComplexHeatmap::pheatmap(auc2, display_numbers=auc1, cluster_rows=FALSE, cluster_cols=FALSE, name="dataset\nz-score", border_color=NA, number_color="black", main="Testing Combinations of DoubletFinder & scDblFinder", row_title="Datasets")
+```
+
+```{r}
+d <- reshape2::melt(auc2)
+d$z <- as.numeric(auc1)
+```
+
+
+```{r}
+table(better=rowMeans(auc1[,8:9]-auc1[,c(7,7)])>0, worst=rowMeans(auc1[,8:9]-auc1[,c(7,7)])<0)
+```
+
