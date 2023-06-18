@@ -1,0 +1,115 @@
+---
+title: "Downsampling"
+output: html_document
+date: "2023.06.19"
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(dev="CairoPNG")
+```
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(scDblFinder)
+  library(ggplot2)
+  library(PRROC)
+  library(BiocParallel)
+})
+```
+
+```{r, eval=FALSE}
+e <- readRDS("datasets/mkidney-ch.rds")
+sce <- SingleCellExperiment(list(counts=e[[1]]))
+sce$truth <- e[[2]]
+sce$libsize <- colSums(assay(sce))
+sce <- sce[,sce$libsize>=2000]
+wDbl <- which(sce$truth=="doublet")
+wSig <- which(sce$truth=="singlet")
+ratDbl <- 0.1
+names(sizes) <- sizes <- c(100,300,500,1000,2000,5000)
+res <- bplapply(sizes, BPPARAM=MulticoreParam(4), FUN=function(i){
+  set.seed(123)
+  dplyr::bind_rows(lapply(1:3, FUN=function(x){
+    i <- c(sample(wDbl, round(ratDbl*i)), sample(wSig, i-round(ratDbl*i)))
+    sce <- scDblFinder(sce[,i], verbose=FALSE)
+    data.frame(score=sce$scDblFinder.score, truth=sce$truth)
+  }), .id="i")
+})
+saveRDS(res, file="downsampling.rds")
+```
+
+```{r, include=FALSE}
+res <- readRDS("downsampling.rds")
+```
+
+
+```{r}
+res2 <- dplyr::bind_rows(res, .id="ncells")
+
+aucs <- dplyr::bind_rows(lapply(res, FUN=function(x){
+  dplyr::bind_rows(lapply(split(x, x$i), FUN=function(x){
+    pr <- PRROC::pr.curve(x$score[x$truth=="singlet"],
+                      x$score[x$truth=="doublet"])
+    data.frame(AUC=pr$auc.integral)
+  }), .id="i")
+}), .id="ncells")
+aucs$NbCells <- factor(aucs$ncells, as.character(sort(as.integer(unique(aucs$ncells)))))
+```
+
+```{r}
+ggplot(aucs, aes(NbCells, AUC)) + geom_boxplot() + ylim(0,1)
+```
+
+```{r}
+res2$NbCells <- factor(res2$ncells, as.character(sort(as.integer(unique(res2$ncells)))))
+res2$seed <- factor(paste0("seed",res2$i))
+ggplot(res2, aes(score)) + geom_histogram() + facet_grid(NbCells~seed, scales = "free_y")
+```
+
+Trying with fewer artificial doublets
+
+```{r}
+names(nad) <- nad <- c(100, 1000, 2500, 5000)
+res <- bplapply(nad, BPPARAM=MulticoreParam(4), FUN=function(ad){
+  i <- 100
+  set.seed(123)
+  dplyr::bind_rows(lapply(1:3, FUN=function(x){
+    i <- c(sample(wDbl, round(ratDbl*i)), sample(wSig, i-round(ratDbl*i)))
+    sce <- scDblFinder(sce[,i], artificialDoublets=ad, verbose=FALSE)
+    data.frame(score=sce$scDblFinder.score, truth=sce$truth)
+  }), .id="i")
+})
+
+```
+
+```{r}
+res2 <- dplyr::bind_rows(res, .id="nAd")
+
+aucs <- dplyr::bind_rows(lapply(res, FUN=function(x){
+  dplyr::bind_rows(lapply(split(x, x$i), FUN=function(x){
+    pr <- PRROC::pr.curve(x$score[x$truth=="singlet"],
+                      x$score[x$truth=="doublet"])
+    data.frame(AUC=pr$auc.integral)
+  }), .id="i")
+}), .id="nAd")
+aucs$NbArtDbls <- factor(aucs$nAd, as.character(sort(as.integer(unique(aucs$nAd)))))
+```
+
+```{r}
+ggplot(aucs, aes(NbArtDbls, AUC)) + geom_boxplot() + ylim(0,1)
+```
+
+```{r}
+res2$NbArtDbls <- factor(res2$nAd, as.character(sort(as.integer(unique(res2$nAd)))))
+res2$seed <- factor(paste0("seed",res2$i))
+ggplot(res2, aes(score)) + geom_histogram() + facet_grid(NbArtDbls~seed, scales = "free_y") + ggtitle("Fewer artificial doublets improve separation (100 cells)")
+```
+```
+
+
+
+```{r}
+sessionInfo()
+```
+
